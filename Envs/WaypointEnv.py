@@ -90,9 +90,7 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         # Evaluate what part of the state is responsible for the "not within observation space" error.
         attitude = self.state["attitude"]
-        for el in range(len(attitude)):
-
-
+        print(f'Attitude: {attitude}')
 
         return self.state, self.info
 
