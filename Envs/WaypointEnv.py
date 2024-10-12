@@ -57,25 +57,20 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.waypoint = np.zeros(3)  # gets set in reset
         self.adj_dome_size = self.flight_dome_size if self.flight_dome_size < np.inf else 20.0  # TODO: Remove Hard Code: Add parameter in WayPointEnv to set the flight_dome_size.
 
-        # Override the Observation space as defined in the superclass:
-        self.attitude_space = spaces.Box(
-            low=-self.adj_dome_size, high=self.adj_dome_size, shape=(3,), dtype=np.float64
-        )
-        self.auxiliary_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64
-        )
 
         self.sparse_reward = sparse_reward
         self.use_yaw_target = use_yaw_target
         self.goal_reach_distance = goal_reach_distance
         self.goal_reach_angle = goal_reach_angle
 
-        # Define observation space
-        waypoint_space_shape = (4,) if use_yaw_target else (3,)
+        # This defines the adapted observation space for the Waypoint environment
         self.observation_space = spaces.Dict({
-            "attitude": self.combined_space,
-            "target_delta": spaces.Box(low=-4 * flight_dome_size, high=4 * flight_dome_size, shape=waypoint_space_shape,
-                                       dtype=np.float64),
+            "attitude": spaces.Box(low=-np.inf, high=np.inf, shape=(16,), dtype=np.float64),
+            "prev_action": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
+            "auxiliary": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
+            "target_delta": spaces.Box(low=-4 * flight_dome_size, high=4 * flight_dome_size, shape=(3,),
+                                       dtype=np.float64),  # Shape: 3,
+            "previous_dist": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64)
         })
 
     def reset(self, *, seed: None | int = None, options: dict[str, Any] | None = dict()) -> tuple[
@@ -83,14 +78,12 @@ class QuadXWaypoint(QuadXBaseEnv):
         """Reset the environment for a new episode."""
 
         self.set_new_waypoint()
+        # Save initial distance for scaled reward calculation
+        self.initial_distance = np.linalg.norm(self.waypoint)
 
         super().begin_reset(seed, options)
         super().end_reset()
         self.compute_state()
-
-        # Evaluate what part of the state is responsible for the "not within observation space" error.
-        attitude = self.state["attitude"]
-        print(f'Attitude: {attitude}')
 
         return self.state, self.info
 
@@ -102,24 +95,54 @@ class QuadXWaypoint(QuadXBaseEnv):
         x = r * np.sin(theta) * np.cos(phi)
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.cos(theta)
-        way_point = np.array([x, y, z])
 
-        return way_point
+        self.waypoint = np.array([x, y, z])
+
+
 
     def compute_state(self):
         """Compute the state of the QuadX."""
         ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()  # TODO: Insert distance to pursuer here as well."
         aux_state = super().compute_auxiliary()
 
-        attitidue = np.concatenate([ang_vel, ang_pos, lin_vel, lin_pos, self.action, aux_state])
+        attitidue = np.concatenate([ang_vel, ang_pos, lin_vel, lin_pos, quaternion])
         target_delta = self.compute_target_delta(ang_pos, lin_pos, quaternion)
 
-        # Combine attitude and target delta into the state dictionary
+        '''
+        print(f'Shape of ang_vel: {ang_vel.shape}')
+        print(f'Shape of ang_pos: {ang_pos.shape}')
+        print(f'Shape of lin_vel: {lin_vel.shape}')
+        print(f'Shape of lin_pos: {lin_pos.shape}')
+        print(f'Shape of quaternion: {len(quaternion)}')
+        print(f'Shape of attitude: {attitidue.shape}')
+        print("------------------------------------")
+        print(f'Shape of auxiliary: {aux_state.shape}')
+        print(f'Shape of target_delta: {target_delta.shape}')
+        print(f'Shape of action: {self.action.shape}')'''
+
+        # This is done, because self.state is 'None' in the beginning, accessing "target_delta" would throw an error.
+        try:
+            self.previous_distance = np.linalg.norm(self.state["target_delta"])
+        except TypeError:
+            self.previous_distance = self.initial_distance  # This yields a reward (distance_change_norm) of 0.0 in the first step.
+
+        self.distance_change_norm = (self.previous_distance - np.linalg.norm(target_delta))/self.initial_distance
+
+        # Combine attitude, auxiliary information, target delta into the state dictionary
         new_state = {
             "attitude": attitidue,
+            "prev_action": self.action,
+            "auxiliary": aux_state,
             "target_delta": target_delta,
+            "previous_dist": self.previous_distance
         }
         self.state = new_state
+
+    def compute_base_term_trunc_reward(self) -> None:
+        self.reward = self.distance_change_norm
+        super().compute_base_term_trunc_reward()  # Overrides self.reward/self.termination if out_of_bounds, max_timesteps or collision
+
+
 
     def compute_target_delta(self, ang_pos, lin_pos, quaternion):  #TODO: Consider adding ang_pos, quaternion to the as different options for the delta calculation.
         """Compute the delta to the waypoint."""
