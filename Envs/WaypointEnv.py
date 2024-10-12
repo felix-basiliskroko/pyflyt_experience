@@ -57,7 +57,6 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.waypoint = np.zeros(3)  # gets set in reset
         self.adj_dome_size = self.flight_dome_size if self.flight_dome_size < np.inf else 20.0  # TODO: Remove Hard Code: Add parameter in WayPointEnv to set the flight_dome_size.
 
-
         self.sparse_reward = sparse_reward
         self.use_yaw_target = use_yaw_target
         self.goal_reach_distance = goal_reach_distance
@@ -82,6 +81,16 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.initial_distance = np.linalg.norm(self.waypoint)
 
         super().begin_reset(seed, options)
+
+        # Overwrite the state dictionary, instead of "None" as initialized in the super class
+        self.state = {
+            "attitude": np.zeros(16),
+            "prev_action": np.zeros(4),
+            "auxiliary": np.zeros(4),
+            "target_delta": np.zeros(3),
+            "previous_dist": np.zeros(1)
+        }
+
         super().end_reset()
         self.compute_state()
 
@@ -97,8 +106,6 @@ class QuadXWaypoint(QuadXBaseEnv):
         z = r * np.cos(theta)
 
         self.waypoint = np.array([x, y, z])
-
-
 
     def compute_state(self):
         """Compute the state of the QuadX."""
@@ -126,27 +133,23 @@ class QuadXWaypoint(QuadXBaseEnv):
         except TypeError:
             self.previous_distance = self.initial_distance  # This yields a reward (distance_change_norm) of 0.0 in the first step.
 
-        self.distance_change_norm = (self.previous_distance - np.linalg.norm(target_delta))/self.initial_distance
+        self.distance_change_norm = (self.previous_distance - np.linalg.norm(target_delta)) / self.initial_distance
 
         # Combine attitude, auxiliary information, target delta into the state dictionary
-        new_state = {
-            "attitude": attitidue,
-            "prev_action": self.action,
-            "auxiliary": aux_state,
-            "target_delta": target_delta,
-            "previous_dist": self.previous_distance
-        }
-        self.state = new_state
+        self.state["attitude"] = np.array([attitidue], dtype=np.float64)
+        self.state["prev_action"] = np.array([self.action], dtype=np.float64)
+        self.state["auxiliary"] = np.array([aux_state], dtype=np.float64)
+        self.state["target_delta"] = np.array([target_delta], dtype=np.float64)
+        self.state["previous_dist"] = np.array([self.previous_distance], dtype=np.float64)
 
     def compute_base_term_trunc_reward(self) -> None:
         self.reward = self.distance_change_norm
         super().compute_base_term_trunc_reward()  # Overrides self.reward/self.termination if out_of_bounds, max_timesteps or collision
 
-
-
-    def compute_target_delta(self, ang_pos, lin_pos, quaternion):  #TODO: Consider adding ang_pos, quaternion to the as different options for the delta calculation.
+    def compute_target_delta(self, ang_pos, lin_pos,
+                             quaternion):  # TODO: Consider adding ang_pos, quaternion to the as different options for the delta calculation.
         """Compute the delta to the waypoint."""
-        if self.use_yaw_target: #TODO: Look into what this specifically does
+        if self.use_yaw_target:  # TODO: Look into what this specifically does
             pass
         target_delta = self.waypoint[:3] - lin_pos
         return target_delta
