@@ -6,7 +6,7 @@ import register  # needed to register the custom environments in gymnasium
 from WaypointEnv import QuadXWaypoint
 
 # env = gymnasium.make("Quadx-Waypoint-v0", render_mode="human")
-env = gymnasium.make("Quadx-Waypoint-v0", render_mode="human")
+env = gymnasium.make("Quadx-Waypoint-v0", render_mode=None)
 
 term, trunc = False, False
 obs, _ = env.reset()

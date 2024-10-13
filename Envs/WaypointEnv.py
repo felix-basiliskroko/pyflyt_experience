@@ -8,6 +8,7 @@ import numpy as np
 from gymnasium import spaces
 
 from PyFlyt.gym_envs.quadx_envs.quadx_base_env import QuadXBaseEnv
+from normaliser import Normaliser
 from PyFlyt.gym_envs.utils.waypoint_handler import WaypointHandler
 
 
@@ -53,6 +54,10 @@ class QuadXWaypoint(QuadXBaseEnv):
             render_mode=render_mode,
             render_resolution=render_resolution,
         )
+
+        # Initialize the Normalizer
+        self.distance_change_norm = None
+        self.normaliser = Normaliser(alpha=0.7)
 
         self.waypoint = np.zeros(3)  # gets set in reset
         self.adj_dome_size = self.flight_dome_size if self.flight_dome_size < np.inf else 20.0  # TODO: Remove Hard Code: Add parameter in WayPointEnv to set the flight_dome_size.
@@ -109,10 +114,10 @@ class QuadXWaypoint(QuadXBaseEnv):
 
     def compute_state(self):
         """Compute the state of the QuadX."""
-        ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()  # TODO: Insert distance to pursuer here as well."
+        ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
         aux_state = super().compute_auxiliary()
 
-        attitidue = np.concatenate([ang_vel, ang_pos, lin_vel, lin_pos, quaternion])
+        attitude = np.concatenate([ang_vel, ang_pos, lin_vel, lin_pos, quaternion])
         target_delta = self.compute_target_delta(ang_pos, lin_pos, quaternion)
 
         '''
@@ -129,18 +134,24 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         # This is done, because self.state is 'None' in the beginning, accessing "target_delta" would throw an error.
         try:
-            self.previous_distance = np.linalg.norm(self.state["target_delta"])
+            self.previous_distance = self.state["target_delta"]
         except TypeError:
             self.previous_distance = self.initial_distance  # This yields a reward (distance_change_norm) of 0.0 in the first step.
 
         self.distance_change_norm = (self.previous_distance - np.linalg.norm(target_delta)) / self.initial_distance
 
+        # Normalize Observations
+        norm_attitude, norm_aux_state, norm_prev_action, norm_target_delta, norm_prev_distance = self.normaliser.ema_normaliser(attitude, aux_state, self.action, target_delta, self.previous_distance)
+
         # Combine attitude, auxiliary information, target delta into the state dictionary
-        self.state["attitude"] = np.array([attitidue], dtype=np.float64)
-        self.state["prev_action"] = np.array([self.action], dtype=np.float64)
-        self.state["auxiliary"] = np.array([aux_state], dtype=np.float64)
-        self.state["target_delta"] = np.array([target_delta], dtype=np.float64)
-        self.state["previous_dist"] = np.array([self.previous_distance], dtype=np.float64)
+        self.state["attitude"] = np.array([norm_attitude], dtype=np.float64)
+        self.state["prev_action"] = np.array([norm_prev_action], dtype=np.float64)
+        self.state["auxiliary"] = np.array([norm_prev_action], dtype=np.float64)
+        self.state["target_delta"] = np.array([norm_target_delta], dtype=np.float64)
+        self.state["previous_dist"] = np.array([norm_prev_distance], dtype=np.float64)
+
+    def normalize_state(self):
+        pass
 
     def compute_base_term_trunc_reward(self) -> None:
         self.reward = self.distance_change_norm
