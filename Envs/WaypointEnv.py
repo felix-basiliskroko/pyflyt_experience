@@ -74,9 +74,9 @@ class QuadXWaypoint(QuadXBaseEnv):
             "ang_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
             "lin_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
             "lin_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
-            "quaternion": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
-            "prev_action": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
-            "auxiliary": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
+            "quaternion": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
+            "prev_action": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
+            "auxiliary": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
             "target_delta": spaces.Box(low=-4 * flight_dome_size, high=4 * flight_dome_size, shape=(3,),
                                        dtype=np.float64),  # Shape: 3,
         })
@@ -97,9 +97,9 @@ class QuadXWaypoint(QuadXBaseEnv):
             "ang_pos": np.zeros(3, dtype=np.float64),
             "lin_vel": np.zeros(3, dtype=np.float64),
             "lin_pos": np.zeros(3, dtype=np.float64),
-            "quaternion": np.zeros(3, dtype=np.float64),
-            "prev_action": np.zeros(3, dtype=np.float64),
-            "auxiliary": np.zeros(3, dtype=np.float64),
+            "quaternion": np.zeros(4, dtype=np.float64),
+            "prev_action": np.zeros(4, dtype=np.float64),
+            "auxiliary": np.zeros(4, dtype=np.float64),
             "target_delta": np.zeros(3, dtype=np.float64),
         }
 
