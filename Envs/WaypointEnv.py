@@ -109,7 +109,8 @@ class QuadXWaypoint(QuadXBaseEnv):
         return self.state, self.info
 
     def set_new_waypoint(self):
-        r = np.random.uniform(0, self.flight_dome_size)
+        limit_perc = 0.1
+        r = np.random.uniform(0, limit_perc * self.flight_dome_size)
         theta = np.random.uniform(0, np.pi)
         phi = np.random.uniform(0, 2 * np.pi)
 
@@ -153,6 +154,6 @@ class QuadXWaypoint(QuadXBaseEnv):
 
     def compute_term_trunc_reward(self):
         """Computes the termination, truncation, and reward based on the current state."""
-        self.reward = -np.linalg.norm(self.state["target_delta"])*50
+        self.reward = -(np.linalg.norm(self.state["target_delta"]) * 20)**2
 
         super().compute_base_term_trunc_reward()  # This evaluates the termination and truncation criteria inside the super class

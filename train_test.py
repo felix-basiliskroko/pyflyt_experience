@@ -8,7 +8,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 
 # Logdir
-dir = "./tensorboard_log"
+dir = "./tensorboard_log/StaticWaypintEnv-RescaleNorm"
 # Get current date and time
 current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 video_folder_path = f"./videos/run_{current_time}"
