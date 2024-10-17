@@ -39,6 +39,7 @@ class QuadXWaypoint(QuadXBaseEnv):
             goal_reach_angle: float = 0.1,
             flight_mode: int = -1,  # This needs to be set to -1 to use thrust control between (0, 0.8) -> quadx_base_env.py
             flight_dome_size: float = 5_000.0,
+            spawn_point_range: float = 0.1,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
             agent_hz: int = 30,
@@ -57,8 +58,9 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         # Initialize the Normalizer
         self.distance_change_norm = None
+        self.spawn_point_range = spawn_point_range
         self.max_speed = 50.0  # This is approximated leaving the quadx on full thrust (on all motors) for 200 steps and recording the max speed  # TODO: Somewhere inside the source code there should be some real value, not just some arbitrary number
-        self.normaliser = Normaliser(alpha=0.7, max_speed=self.max_speed, border_radius=2*flight_dome_size)
+        self.normaliser = Normaliser(alpha=0.7, max_speed=self.max_speed, border_radius=spawn_point_range * (2*flight_dome_size))
 
         self.waypoint = np.zeros(3)  # gets set in reset
 
@@ -109,8 +111,7 @@ class QuadXWaypoint(QuadXBaseEnv):
         return self.state, self.info
 
     def set_new_waypoint(self):
-        limit_perc = 0.1
-        r = np.random.uniform(0, limit_perc * self.flight_dome_size)
+        r = np.random.uniform(0, self.spawn_point_range * self.flight_dome_size)
         theta = np.random.uniform(0, np.pi)
         phi = np.random.uniform(0, 2 * np.pi)
 

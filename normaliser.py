@@ -5,7 +5,7 @@ class Normaliser:
     def __init__(self, alpha: float, max_speed, border_radius):
         # For simple normalisation:
         self.max_speed = max_speed
-        self.border_radius = border_radius
+        self.mod_border_radius = border_radius  # Modified to account for the spawn point range
 
         # Initial parameters approximated from 100_000 random steps in the environment (see ema_parameters.json for reference)
         self.alpha = alpha
@@ -120,8 +120,8 @@ class Normaliser:
         min_lim, max_lim = -1.0, 1.0
 
         mag_lin_pos = np.linalg.norm(lin_pos)  # Magnitude of the position vector
-        norm_lin_pos = lin_pos / (0.1 * mag_lin_pos)  # Devide by its magnitude -> unit vector (-1, 1)
-        norm_mag_lin_pos = mag_lin_pos / (0.1 * self.border_radius)  # Min-Max Normalisation -> (0, 1)
+        norm_lin_pos = lin_pos / mag_lin_pos  # Devide by its magnitude -> unit vector (-1, 1)
+        norm_mag_lin_pos = mag_lin_pos / self.mod_border_radius  # Min-Max Normalisation -> (0, 1)
         norm_lin_pos = norm_mag_lin_pos * norm_lin_pos  # Rescale unit-vector according to the normalised magnitude
         norm_lin_pos = np.tanh(norm_lin_pos)  # To mitigate potential numerical instability, we apply the tanh function
         # This preserves direction and (to some extent) magnitude while normalising the values
@@ -136,7 +136,7 @@ class Normaliser:
         # norm_target_delta = target_delta
         mag_target_delta = np.linalg.norm(target_delta)  # Magnitude of the target delta vector
         norm_target_delta = target_delta / mag_target_delta  # Devide by its magnitude -> unit vector (-1, 1)
-        norm_mag_target_delta = mag_target_delta / (0.1 * self.border_radius)  # Min-Max Normalisation -> (0, 1)
+        norm_mag_target_delta = mag_target_delta / self.mod_border_radius  # Min-Max Normalisation -> (0, 1)
         norm_target_delta = norm_mag_target_delta * norm_target_delta  # Rescale unit-vector according to the normalised magnitude
         norm_target_delta = np.tanh(norm_target_delta)  # To mitigate potential numerical instability, we apply the tanh function
         # This preserves direction and (to some extent) magnitude while normalising the values
