@@ -23,6 +23,7 @@ class Normaliser:
         self.quat_min, self.quat_max = -1.0, 1.0
 
         self.thrust_min, self.thrust_max = 0, 0.8  #
+        self.min_ang_vel, self.max_ang_vel = -10.0, 10.0
 
     def _ema_parameter_updates(self, attitude) -> None:
         """
@@ -116,8 +117,12 @@ class Normaliser:
 
         return norm_attitude, norm_aux, norm_prev_action, norm_target_delta, norm_prev_dist
 
-    def simple_normaliser(self, lin_pos, lin_vel, target_delta, prev_action, aux_state):
+    def simple_normaliser(self, ang_vel, lin_pos, lin_vel, target_delta, prev_action, aux_state):
         min_lim, max_lim = -1.0, 1.0
+
+        # Standard Min-Max Normalisation
+        norm_ang_vel = (ang_vel - self.ang_vel_min) / (self.ang_vel_max - self.ang_vel_min)
+        norm_ang_vel = min_lim + (max_lim - min_lim) * norm_ang_vel  # Scale to -1, 1
 
         mag_lin_pos = np.linalg.norm(lin_pos)  # Magnitude of the position vector
         norm_lin_pos = lin_pos / mag_lin_pos  # Devide by its magnitude -> unit vector (-1, 1)

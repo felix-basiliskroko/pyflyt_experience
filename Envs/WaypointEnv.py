@@ -128,22 +128,22 @@ class QuadXWaypoint(QuadXBaseEnv):
         aux_state = super().compute_auxiliary()
         target_delta = self.compute_target_delta(ang_pos, lin_pos, quaternion)
 
-        # Normalise
+        '''# Normalise
         norm_state = self.normaliser.simple_normaliser(lin_pos=lin_pos,
                                                        lin_vel=lin_vel,
                                                        target_delta=target_delta,
                                                        prev_action=self.action,
                                                        aux_state=aux_state)
-
+        '''
         # Adapt the state dictionary
         self.state["ang_vel"] = np.array([ang_vel], dtype=np.float64)
         self.state["ang_pos"] = np.array([ang_pos], dtype=np.float64)
-        self.state["lin_vel"] = np.array([norm_state["lin_vel"]], dtype=np.float64)
-        self.state["lin_pos"] = np.array([norm_state["lin_pos"]], dtype=np.float64)
+        self.state["lin_vel"] = np.array([lin_vel], dtype=np.float64)
+        self.state["lin_pos"] = np.array([lin_pos], dtype=np.float64)
         self.state["quaternion"] = np.array([quaternion], dtype=np.float64)
-        self.state["prev_action"] = np.array([norm_state["prev_action"]], dtype=np.float64)
-        self.state["auxiliary"] = np.array([norm_state["aux_state"]], dtype=np.float64)
-        self.state["target_delta"] = np.array([norm_state["target_delta"]], dtype=np.float64)
+        self.state["prev_action"] = np.array([self.action], dtype=np.float64)
+        self.state["auxiliary"] = np.array([aux_state], dtype=np.float64)
+        self.state["target_delta"] = np.array([target_delta], dtype=np.float64)
 
     def compute_target_delta(self, ang_pos, lin_pos,
                              quaternion):  # TODO: Consider adding ang_pos, quaternion to the as different options for the delta calculation.

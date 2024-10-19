@@ -6,19 +6,23 @@ import Envs.register
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env.vec_normalize import VecNormalize
+from stable_baselines3.common.env_util import make_vec_env
+from custom_callbacks import ObservationHistCallback
 
 # Logdir
-dir = "./tensorboard_log/StaticWaypintEnv-RescaleNorm"
+dir = "./tensorboard_log/StaticWaypintEnv-MonitorObs"
+hist_callback = ObservationHistCallback()
 # Get current date and time
 current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 video_folder_path = f"./videos/run_{current_time}"
 
 # Parallel environments
-vec_env = gym.make("Quadx-Waypoint-v0", render_mode=None)
-# vec_env = make_vec_env("PyFlyt/QuadX-Pole-Balance-v2", n_envs=16)
-# vec_env = RecordVideo(vec_env, video_folder=video_folder_path, episode_trigger=lambda episode_id: episode_id % 20 == 0)  # Adjust trigger as needed
+# vec_env = gym.make("Quadx-Waypoint-v0")
+vec_env = make_vec_env("Quadx-Waypoint-v0", n_envs=2)
+vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True)
 
 # model = PPO("MlpPolicy", vec_env, verbose=1, tensorboard_log=dir)  # For non-dict observation space
 model = PPO("MultiInputPolicy", vec_env, verbose=1, tensorboard_log=dir)  # For non-dict observation space
-model.learn(total_timesteps=5_000_000)
+model.learn(total_timesteps=500_000, callback=hist_callback)
 model.save("ppo_waypoint")
