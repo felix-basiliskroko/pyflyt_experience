@@ -72,6 +72,11 @@ class QuadXWaypoint(QuadXBaseEnv):
         # This defines the adapted observation space for the Waypoint environment
         # ang_vel, ang_pos, lin_vel, lin_pos, quaternion
         self.observation_space = spaces.Dict({
+            "targ_distance": spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float64),
+            "lin_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
+        })
+
+        '''self.observation_space = spaces.Dict({
             "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
             "ang_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
             "lin_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
@@ -81,20 +86,20 @@ class QuadXWaypoint(QuadXBaseEnv):
             "auxiliary": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
             "target_delta": spaces.Box(low=-4 * flight_dome_size, high=4 * flight_dome_size, shape=(3,),
                                        dtype=np.float64),  # Shape: 3,
-        })
+        })'''
+
+        self.waypoint = np.array([20.0, 20.0, 20.0], dtype=np.float64)
+        # Save initial distance for scaled reward calculation
+        self.initial_distance = np.linalg.norm(self.waypoint)
 
     def reset(self, *, seed: None | int = None, options: dict[str, Any] | None = dict()) -> tuple[
         dict[str, np.ndarray], dict[str, Any]]:
         """Reset the environment for a new episode."""
 
-        self.set_new_waypoint()
-        # Save initial distance for scaled reward calculation
-        self.initial_distance = np.linalg.norm(self.waypoint)
-
         super().begin_reset(seed, options)
 
         # Overwrite the state dictionary, instead of "None" as initialized in the super class
-        self.state = {
+        '''self.state = {
             "ang_vel": np.zeros(3, dtype=np.float64),
             "ang_pos": np.zeros(3, dtype=np.float64),
             "lin_vel": np.zeros(3, dtype=np.float64),
@@ -103,6 +108,11 @@ class QuadXWaypoint(QuadXBaseEnv):
             "prev_action": np.zeros(4, dtype=np.float64),
             "auxiliary": np.zeros(4, dtype=np.float64),
             "target_delta": np.zeros(3, dtype=np.float64),
+        }'''
+
+        self.state = {
+            "targ_distance": np.zeros(1, dtype=np.float64),
+            "lin_vel": np.zeros(3, dtype=np.float64),
         }
 
         super().end_reset()
@@ -125,8 +135,11 @@ class QuadXWaypoint(QuadXBaseEnv):
         """Compute the state of the QuadX."""
         # Compute observation
         ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
-        aux_state = super().compute_auxiliary()
-        target_delta = self.compute_target_delta(ang_pos, lin_pos, quaternion)
+        # aux_state = super().compute_auxiliary()
+        # target_delta = self.compute_target_delta(ang_pos, lin_pos, quaternion)
+
+        self.state["targ_distance"] = np.array([np.linalg.norm(self.waypoint - lin_pos)/(1.5*self.initial_distance)], dtype=np.float64)
+        self.state["lin_vel"] = np.array([lin_vel/np.linalg.norm(lin_vel)], dtype=np.float64)
 
         '''# Normalise
         norm_state = self.normaliser.simple_normaliser(lin_pos=lin_pos,
@@ -136,14 +149,14 @@ class QuadXWaypoint(QuadXBaseEnv):
                                                        aux_state=aux_state)
         '''
         # Adapt the state dictionary
-        self.state["ang_vel"] = np.array([ang_vel], dtype=np.float64)
+        '''self.state["ang_vel"] = np.array([ang_vel], dtype=np.float64)
         self.state["ang_pos"] = np.array([ang_pos], dtype=np.float64)
         self.state["lin_vel"] = np.array([lin_vel], dtype=np.float64)
         self.state["lin_pos"] = np.array([lin_pos], dtype=np.float64)
         self.state["quaternion"] = np.array([quaternion], dtype=np.float64)
         self.state["prev_action"] = np.array([self.action], dtype=np.float64)
         self.state["auxiliary"] = np.array([aux_state], dtype=np.float64)
-        self.state["target_delta"] = np.array([target_delta], dtype=np.float64)
+        self.state["target_delta"] = np.array([target_delta], dtype=np.float64)'''
 
     def compute_target_delta(self, ang_pos, lin_pos,
                              quaternion):  # TODO: Consider adding ang_pos, quaternion to the as different options for the delta calculation.
@@ -155,6 +168,6 @@ class QuadXWaypoint(QuadXBaseEnv):
 
     def compute_term_trunc_reward(self):
         """Computes the termination, truncation, and reward based on the current state."""
-        self.reward = -(np.linalg.norm(self.state["target_delta"]) * 20)**2
+        self.reward = -(self.state["targ_distance"])
 
         super().compute_base_term_trunc_reward()  # This evaluates the termination and truncation criteria inside the super class
