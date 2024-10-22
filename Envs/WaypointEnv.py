@@ -68,6 +68,7 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.use_yaw_target = use_yaw_target
         self.goal_reach_distance = goal_reach_distance
         self.goal_reach_angle = goal_reach_angle
+        self.info_state = {}
 
         # This defines the adapted observation space for the Waypoint environment
         # ang_vel, ang_pos, lin_vel, lin_pos, quaternion
@@ -133,6 +134,15 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         self.waypoint = np.array([x, y, z])
 
+    def get_info_state(self):
+        """
+        Provides additional information, that are not part of the state-space.
+        :return: dict
+        """
+        return self.info_state
+
+
+
     def compute_state(self):
         """Compute the state of the QuadX."""
         # Compute observation
@@ -140,6 +150,15 @@ class QuadXWaypoint(QuadXBaseEnv):
         # aux_state = super().compute_auxiliary()
         target_delta = self.compute_target_delta(ang_pos=None, lin_pos=lin_pos, quaternion=None)
         norm_target_delta = target_delta/(1.5*self.initial_distance)
+
+        # Provide addition information (for evaluation/plotting etc.)
+        self.info_state = {
+            "ang_vel": ang_vel,
+            "ang_pos": ang_pos,
+            "lin_vel": lin_vel,
+            "lin_pos": lin_pos,
+            "quaternion": quaternion
+        }
 
         self.state["targ_delta"] = np.array([norm_target_delta], dtype=np.float64)
         self.state["targ_distance"] = np.array([np.linalg.norm(norm_target_delta)], dtype=np.float64)
@@ -173,6 +192,7 @@ class QuadXWaypoint(QuadXBaseEnv):
     def compute_term_trunc_reward(self):
         """Computes the termination, truncation, and reward based on the current state."""
         self.reward = -(self.state["targ_distance"])
+        agent_lin_pos = self.info_state["lin_pos"]
 
         if self.step_count > self.max_steps:
             self.truncation |= True
@@ -183,10 +203,8 @@ class QuadXWaypoint(QuadXBaseEnv):
             self.info["collision"] = True
             self.termination |= True
 
-        # Don't care about this in my simplified state space atm
-        # if np.linalg.norm(self.state[]) > self.flight_dome_size:
-        #     self.reward = -5.0
-        #     self.info["out_of_bounds"] = True
-        #     self.termination |= True
-
-        # super().compute_base_term_trunc_reward()  # This evaluates the termination and truncation criteria inside the super class
+        # reached waypoint
+        if np.linalg.norm(self.waypoint - agent_lin_pos) <= 5.0:
+            self.reward = 5.0
+            self.info["collision"] = True
+            self.termination |= True
