@@ -3,6 +3,7 @@ from tensorflow import keras
 from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
 from stable_baselines3.common.logger import Figure
+from stable_baselines3.common.callbacks import EvalCallback
 import matplotlib.pyplot as plt
 
 
@@ -86,3 +87,46 @@ class ObservationHistCallback(BaseCallback):
         ax.set_ylabel('Frequency')
 
         return fig
+
+from typing import List, Dict, Any
+import numpy as np
+import os
+
+
+class StabilityEvalCallback(EvalCallback):
+    def __init__(self, *args, threshold: float = 0.5, n_stability_epochs: int = 10, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.threshold = threshold
+        self.n_stability_epochs = n_stability_epochs
+        self.recent_rewards: List[float] = []
+
+    def _on_step(self) -> bool:
+        continue_training = super()._on_step()
+
+        # Only proceed if the recent rewards list is filled with enough evaluations
+        if len(self.recent_rewards) >= self.n_stability_epochs:
+            # Calculate the differences between consecutive evaluations
+            differences = [abs(self.recent_rewards[i] - self.recent_rewards[i - 1]) for i in range(1, len(self.recent_rewards))]
+            # Check if all differences are below the threshold
+            if all(diff < self.threshold for diff in differences):
+                print("Model performance is stable. Adjusting spawn point.")
+                self.spawn_point_r_adjustment()
+
+            # Remove the oldest reward to make room for new evaluations
+            self.recent_rewards.pop(0)
+
+        # Append the latest mean reward to the recent_rewards list
+        self.recent_rewards.append(self.last_mean_reward)
+
+        # Log spawn_point_radius
+        self.logger.record("train/spawn_point_r", self.model.get_env().get_attr("spawn_point_r"))
+
+        return continue_training
+
+    def spawn_point_r_adjustment(self):
+        """
+        Adjust the spawn point attribute `self.spawn_point_r` based on your specific logic.
+        """
+        # Example adjustment logic
+        old_spawn_point_r = self.model.get_env().get_attr("spawn_point_r")[0]
+        self.model.get_env().set_attr(attr_name="spawn_point_r", value=old_spawn_point_r+0.05)

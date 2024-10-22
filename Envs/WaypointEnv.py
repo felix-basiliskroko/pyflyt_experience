@@ -39,7 +39,7 @@ class QuadXWaypoint(QuadXBaseEnv):
             goal_reach_angle: float = 0.1,
             flight_mode: int = -1,  # This needs to be set to -1 to use thrust control between (0, 0.8) -> quadx_base_env.py
             flight_dome_size: float = 5_000.0,
-            spawn_point_range: float = 0.1,
+            spawn_point_scheduler: bool = False,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
             agent_hz: int = 30,
@@ -58,9 +58,9 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         # Initialize the Normalizer
         self.distance_change_norm = None
-        self.spawn_point_range = spawn_point_range
+        self.spawn_point_r = 0.05
         self.max_speed = 50.0  # This is approximated leaving the quadx on full thrust (on all motors) for 200 steps and recording the max speed  # TODO: Somewhere inside the source code there should be some real value, not just some arbitrary number
-        self.normaliser = Normaliser(alpha=0.7, max_speed=self.max_speed, border_radius=spawn_point_range * (2*flight_dome_size))
+        # self.normaliser = Normaliser(alpha=0.7, max_speed=self.max_speed, border_radius=spawn_point_range * (2*flight_dome_size))
 
         self.waypoint = np.zeros(3)  # gets set in reset
 
@@ -72,6 +72,7 @@ class QuadXWaypoint(QuadXBaseEnv):
         # This defines the adapted observation space for the Waypoint environment
         # ang_vel, ang_pos, lin_vel, lin_pos, quaternion
         self.observation_space = spaces.Dict({
+            "targ_delta": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
             "targ_distance": spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float64),
             "lin_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
         })
@@ -111,6 +112,7 @@ class QuadXWaypoint(QuadXBaseEnv):
         }'''
 
         self.state = {
+            "targ_delta": np.zeros(3, dtype=np.float64),
             "targ_distance": np.zeros(1, dtype=np.float64),
             "lin_vel": np.zeros(3, dtype=np.float64),
         }
@@ -120,8 +122,8 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         return self.state, self.info
 
-    def set_new_waypoint(self):
-        r = np.random.uniform(0, self.spawn_point_range * self.flight_dome_size)
+    def set_new_waypoint(self, use_schedule=False):
+        r = np.random.uniform(0, self.spawn_point_r * self.flight_dome_size)
         theta = np.random.uniform(0, np.pi)
         phi = np.random.uniform(0, 2 * np.pi)
 
@@ -136,9 +138,11 @@ class QuadXWaypoint(QuadXBaseEnv):
         # Compute observation
         ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
         # aux_state = super().compute_auxiliary()
-        # target_delta = self.compute_target_delta(ang_pos, lin_pos, quaternion)
+        target_delta = self.compute_target_delta(ang_pos=None, lin_pos=lin_pos, quaternion=None)
+        norm_target_delta = target_delta/(1.5*self.initial_distance)
 
-        self.state["targ_distance"] = np.array([np.linalg.norm(self.waypoint - lin_pos)/(1.5*self.initial_distance)], dtype=np.float64)
+        self.state["targ_delta"] = np.array([norm_target_delta], dtype=np.float64)
+        self.state["targ_distance"] = np.array([np.linalg.norm(norm_target_delta)], dtype=np.float64)
         self.state["lin_vel"] = np.array([lin_vel/np.linalg.norm(lin_vel)], dtype=np.float64)
 
         '''# Normalise
