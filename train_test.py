@@ -24,5 +24,5 @@ vec_env = make_vec_env("Quadx-Waypoint-v0", n_envs=1)
 
 # model = PPO("MlpPolicy", vec_env, verbose=1, tensorboard_log=dir)  # For non-dict observation space
 model = PPO("MultiInputPolicy", vec_env, verbose=1, tensorboard_log=dir)  # For non-dict observation space
-model.learn(total_timesteps=5_00_000)
+model.learn(total_timesteps=500_000)
 model.save("ppo_waypoint")
