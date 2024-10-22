@@ -175,7 +175,6 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         # if anything hits the floor, basically game over
         if np.any(self.env.contact_array[self.env.planeId]):
-            print("UAV impacted the ground:")
             self.reward = -5.0
             self.info["collision"] = True
             self.termination |= True
