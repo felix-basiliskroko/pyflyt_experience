@@ -17,8 +17,8 @@ print(f'Current waypoint: {env.waypoint}')
 
 while not (term or trunc):
     # new_action = env.action_space.sample()
-    new_action = np.array([1.0, 1.0, 1.0, 1.0])
+    new_action = np.array([0.0, 0.0, 0.0, 0.0])
     obs, rew, term, trunc, _ = env.step(new_action)
-    print(f"Distance to waypoint: {np.linalg.norm(obs['target_delta'])}; Reward: {rew}")
+    # print(f"Distance to waypoint: {np.linalg.norm(obs['target_delta'])}; Reward: {rew}")
 env.reset()
 

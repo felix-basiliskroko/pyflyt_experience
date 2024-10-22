@@ -12,7 +12,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from custom_callbacks import ObservationHistCallback
 
 # Logdir
-dir = "./tensorboard_log/StaticWaypointEnv/Simple-ObsCustomNet"
+dir = "./tensorboard_log/StaticWaypointEnv/SimpleObs-SmallTermReward"
 # hist_callback = ObservationHistCallback()
 # Get current date and time
 current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

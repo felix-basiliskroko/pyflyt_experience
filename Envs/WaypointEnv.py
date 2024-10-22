@@ -170,4 +170,20 @@ class QuadXWaypoint(QuadXBaseEnv):
         """Computes the termination, truncation, and reward based on the current state."""
         self.reward = -(self.state["targ_distance"])
 
-        super().compute_base_term_trunc_reward()  # This evaluates the termination and truncation criteria inside the super class
+        if self.step_count > self.max_steps:
+            self.truncation |= True
+
+        # if anything hits the floor, basically game over
+        if np.any(self.env.contact_array[self.env.planeId]):
+            print("UAV impacted the ground:")
+            self.reward = -5.0
+            self.info["collision"] = True
+            self.termination |= True
+
+        # Don't care about this in my simplified state space atm
+        # if np.linalg.norm(self.state[]) > self.flight_dome_size:
+        #     self.reward = -5.0
+        #     self.info["out_of_bounds"] = True
+        #     self.termination |= True
+
+        # super().compute_base_term_trunc_reward()  # This evaluates the termination and truncation criteria inside the super class
