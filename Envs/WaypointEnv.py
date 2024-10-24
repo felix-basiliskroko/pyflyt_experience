@@ -155,7 +155,6 @@ class QuadXWaypoint(QuadXBaseEnv):
         norm_targ_distance = np.linalg.norm(target_delta) / (2*self.initial_distance)
         # norm_altitude = lin_pos[2] / (self.spawn_point_r * self.flight_dome_size)
         norm_altitude = lin_pos[2] / 25  # this is because the static target is at 20m (+5 for leniency)
-        print(f'Unnormalised altitude: {lin_pos[2]}')
         #TODO: Update the normalisation of the altitude based on the height of the WAYPOINT (+ some leniency-factor L)
 
         # Provide addition information (for evaluation/plotting etc.)

@@ -38,7 +38,7 @@ def plot_trajectory_with_target(trajectory_points, target):
 
 env = gym.make("Quadx-Waypoint-v0", render_mode="human")
 model = PPO("MultiInputPolicy", env=env)
-model.load("./checkpoints/SimpleObs/TargetDelta-Radius-1000m/best_model", deterministic=True)
+model.load("./checkpoints/SimpleObs/Altitude-Reward-New-Action-Space/best_model", deterministic=True)
 agent_pos = []
 
 term, trunc = False, False
@@ -48,7 +48,7 @@ ep_reward = 0.0
 for _ in range(1):
     # Evaluate the agent
     while not (term or trunc):
-        action, _ = model.predict(obs, deterministic=True)
+        action, _ = model.predict(obs, deterministic=False)
         action = action.squeeze(0)
         # action = np.array([0.8, 0.8, 0.8, 0.8])
         obs, rew, term, trunc, _ = env.step(action)
