@@ -37,7 +37,7 @@ class QuadXWaypoint(QuadXBaseEnv):
             use_yaw_target: bool = False,
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
-            flight_mode: int = -1,  # This needs to be set to -1 to use thrust control between (0, 0.8) -> quadx_base_env.py
+            flight_mode: int = 0,  # This needs to be set to -1 to use thrust control between (0, 0.8) -> quadx_base_env.py
             flight_dome_size: float = 5_000.0,
             spawn_point_scheduler: bool = False,
             max_duration_seconds: float = 10.0,
@@ -58,7 +58,7 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         # Initialize the Normalizer
         self.distance_change_norm = None
-        self.spawn_point_r = 0.05
+        self.spawn_point_r = 0.2
         self.max_speed = 50.0  # This is approximated leaving the quadx on full thrust (on all motors) for 200 steps and recording the max speed  # TODO: Somewhere inside the source code there should be some real value, not just some arbitrary number
         # self.normaliser = Normaliser(alpha=0.7, max_speed=self.max_speed, border_radius=spawn_point_range * (2*flight_dome_size))
 
@@ -149,7 +149,8 @@ class QuadXWaypoint(QuadXBaseEnv):
         ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
         # aux_state = super().compute_auxiliary()
         target_delta = self.compute_target_delta(ang_pos=None, lin_pos=lin_pos, quaternion=None)
-        norm_target_delta = target_delta/(1.5*self.initial_distance)
+        norm_target_delta = target_delta / np.linalg.norm(target_delta)
+        norm_targ_distance = np.linalg.norm(target_delta) / 1.5*self.initial_distance
 
         # Provide addition information (for evaluation/plotting etc.)
         self.info_state = {
@@ -161,8 +162,9 @@ class QuadXWaypoint(QuadXBaseEnv):
         }
 
         self.state["targ_delta"] = np.array([norm_target_delta], dtype=np.float64)
-        self.state["targ_distance"] = np.array([np.linalg.norm(norm_target_delta)], dtype=np.float64)
+        self.state["targ_distance"] = np.array([norm_targ_distance], dtype=np.float64)
         self.state["lin_vel"] = np.array([lin_vel/np.linalg.norm(lin_vel)], dtype=np.float64)
+        #TDOD: Add altitude to the agent!!!
 
         '''# Normalise
         norm_state = self.normaliser.simple_normaliser(lin_pos=lin_pos,
