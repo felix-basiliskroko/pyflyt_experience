@@ -152,9 +152,10 @@ class QuadXWaypoint(QuadXBaseEnv):
         # aux_state = super().compute_auxiliary()
         target_delta = self.compute_target_delta(ang_pos=None, lin_pos=lin_pos, quaternion=None)
         norm_target_delta = target_delta / np.linalg.norm(target_delta)
-        norm_targ_distance = np.linalg.norm(target_delta) / 1.5*self.initial_distance
+        norm_targ_distance = np.linalg.norm(target_delta) / (2*self.initial_distance)
         # norm_altitude = lin_pos[2] / (self.spawn_point_r * self.flight_dome_size)
         norm_altitude = lin_pos[2] / 25  # this is because the static target is at 20m (+5 for leniency)
+        print(f'Unnormalised altitude: {lin_pos[2]}')
         #TODO: Update the normalisation of the altitude based on the height of the WAYPOINT (+ some leniency-factor L)
 
         # Provide addition information (for evaluation/plotting etc.)
@@ -199,7 +200,7 @@ class QuadXWaypoint(QuadXBaseEnv):
     def compute_term_trunc_reward(self):
         """Computes the termination, truncation, and reward based on the current state."""
         distance_target_reward = -(self.state["targ_distance"])
-        distance_ground_reward = -(2*self.state["altitude"]) if self.state["altitude"] < 0.2 else 0  # 5m above ground
+        distance_ground_reward = -5 * (0.2 - self.state["altitude"]) if self.state["altitude"] < 0.2 else 0  # 5m above ground
 
         self.reward = distance_target_reward + distance_ground_reward
         agent_lin_pos = self.info_state["lin_pos"]
