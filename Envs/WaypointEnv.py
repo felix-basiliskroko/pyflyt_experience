@@ -37,7 +37,7 @@ class QuadXWaypoint(QuadXBaseEnv):
             use_yaw_target: bool = False,
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
-            flight_mode: int = 0,  # This needs to be set to -1 to use thrust control between (0, 0.8) -> quadx_base_env.py
+            flight_mode: int = 0,  # This needs to be set to 0 to use pitch, yaw, roll, thrust_level -> quadx_base_env.py
             flight_dome_size: float = 5_000.0,
             spawn_point_scheduler: bool = False,
             max_duration_seconds: float = 10.0,
@@ -76,6 +76,7 @@ class QuadXWaypoint(QuadXBaseEnv):
             "targ_delta": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
             "targ_distance": spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float64),
             "lin_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
+            "altitude": spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float64),
         })
 
         '''self.observation_space = spaces.Dict({
@@ -116,6 +117,7 @@ class QuadXWaypoint(QuadXBaseEnv):
             "targ_delta": np.zeros(3, dtype=np.float64),
             "targ_distance": np.zeros(1, dtype=np.float64),
             "lin_vel": np.zeros(3, dtype=np.float64),
+            "altitude": np.zeros(1, dtype=np.float64),
         }
 
         super().end_reset()
@@ -151,6 +153,9 @@ class QuadXWaypoint(QuadXBaseEnv):
         target_delta = self.compute_target_delta(ang_pos=None, lin_pos=lin_pos, quaternion=None)
         norm_target_delta = target_delta / np.linalg.norm(target_delta)
         norm_targ_distance = np.linalg.norm(target_delta) / 1.5*self.initial_distance
+        # norm_altitude = lin_pos[2] / (self.spawn_point_r * self.flight_dome_size)
+        norm_altitude = lin_pos[2] / 25  # this is because the static target is at 20m (+5 for leniency)
+        #TODO: Update the normalisation of the altitude based on the height of the WAYPOINT (+ some leniency-factor L)
 
         # Provide addition information (for evaluation/plotting etc.)
         self.info_state = {
@@ -164,7 +169,7 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.state["targ_delta"] = np.array([norm_target_delta], dtype=np.float64)
         self.state["targ_distance"] = np.array([norm_targ_distance], dtype=np.float64)
         self.state["lin_vel"] = np.array([lin_vel/np.linalg.norm(lin_vel)], dtype=np.float64)
-        #TDOD: Add altitude to the agent!!!
+        self.state["altitude"] = np.array([norm_altitude], dtype=np.float64)
 
         '''# Normalise
         norm_state = self.normaliser.simple_normaliser(lin_pos=lin_pos,
@@ -193,7 +198,10 @@ class QuadXWaypoint(QuadXBaseEnv):
 
     def compute_term_trunc_reward(self):
         """Computes the termination, truncation, and reward based on the current state."""
-        self.reward = -(self.state["targ_distance"])
+        distance_target_reward = -(self.state["targ_distance"])
+        distance_ground_reward = -(2*self.state["altitude"]) if self.state["altitude"] < 0.2 else 0  # 5m above ground
+
+        self.reward = distance_target_reward + distance_ground_reward
         agent_lin_pos = self.info_state["lin_pos"]
 
         if self.step_count > self.max_steps:
