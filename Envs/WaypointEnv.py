@@ -77,6 +77,9 @@ class QuadXWaypoint(QuadXBaseEnv):
             "targ_distance": spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float64),
             "lin_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
             "altitude": spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float64),
+            "auxiliary": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
+            "angular_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
+            "angular_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
         })
 
         '''self.observation_space = spaces.Dict({
@@ -149,7 +152,7 @@ class QuadXWaypoint(QuadXBaseEnv):
         """Compute the state of the QuadX."""
         # Compute observation
         ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
-        # aux_state = super().compute_auxiliary()
+        self.aux_state = super().compute_auxiliary()
         target_delta = self.compute_target_delta(ang_pos=None, lin_pos=lin_pos, quaternion=None)
         norm_target_delta = target_delta / np.linalg.norm(target_delta)
         norm_targ_distance = np.linalg.norm(target_delta) / (2*self.initial_distance)
@@ -170,6 +173,9 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.state["targ_distance"] = np.array([norm_targ_distance], dtype=np.float64)
         self.state["lin_vel"] = np.array([lin_vel/np.linalg.norm(lin_vel)], dtype=np.float64)
         self.state["altitude"] = np.array([norm_altitude], dtype=np.float64)
+        self.state["auxiliary"] = np.array([self.aux_state], dtype=np.float64)
+        self.state["angular_vel"] = np.array([ang_vel], dtype=np.float64)
+        self.state["angular_pos"] = np.array([ang_pos], dtype=np.float64)
 
         '''# Normalise
         norm_state = self.normaliser.simple_normaliser(lin_pos=lin_pos,
@@ -200,8 +206,10 @@ class QuadXWaypoint(QuadXBaseEnv):
         """Computes the termination, truncation, and reward based on the current state."""
         distance_target_reward = -(self.state["targ_distance"])
         distance_ground_reward = -5 * (0.2 - self.state["altitude"]) if self.state["altitude"] < 0.2 else 0  # 5m above ground
+        smooth_control_reward = np.linalg.norm(self.state["auxiliary"] - self.action.copy())/np.sqrt(12*np.pi**2 + (16/25))
+        smooth_ang_vel_reward = np.linalg.norm(self.state["angular_vel"])/np.sqrt(3)/np.sqrt(3*np.pi**2)
 
-        self.reward = distance_target_reward + distance_ground_reward
+        self.reward = 1/4 * distance_target_reward + 1/4 * distance_ground_reward + 1/4 * smooth_control_reward + 1/4 * smooth_ang_vel_reward
         agent_lin_pos = self.info_state["lin_pos"]
 
         if self.step_count > self.max_steps:
