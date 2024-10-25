@@ -16,7 +16,7 @@ from stable_baselines3.common.callbacks import EvalCallback
 eval_freq = 20_000
 log_root_dir = "./tensorboard_log/StaticWaypointEnv"
 run = "SimpleObs"
-mod = "Altitude-Reward-New-Action-Space"
+mod = "Smooth-Control-Reward"
 dir = f'{log_root_dir}/{run}/{mod}'
 vec_env = make_vec_env("Quadx-Waypoint-v0", n_envs=1)
 policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
@@ -33,4 +33,4 @@ model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_
             gamma=0.8,
             learning_rate=0.001,
             device=device)  # For non-dict observation space
-model.learn(total_timesteps=1_000_000, callback=eval_callback)
+model.learn(total_timesteps=2_000_000, callback=eval_callback)

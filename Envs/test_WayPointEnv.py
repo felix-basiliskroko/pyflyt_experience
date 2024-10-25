@@ -20,7 +20,7 @@ while not (term or trunc):
     new_action = env.action_space.sample()
     # new_action = np.array([0.8, 0.8, 0.8, 0.8])
     obs, rew, term, trunc, _ = env.step(new_action)
-    info_state = env.unwrapped.geit_info_state()
+    info_state = env.unwrapped.get_info_state()
     if info_state["ang_pos"].any() < ang_pos_min:
         ang_pos_min = np.min(info_state["ang_pos"])
     if info_state["ang_pos"].any() > ang_pos_max:

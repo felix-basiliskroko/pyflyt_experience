@@ -69,6 +69,7 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.goal_reach_distance = goal_reach_distance
         self.goal_reach_angle = goal_reach_angle
         self.info_state = {}
+        self.prev_aux_state = np.zeros(4)
 
         # This defines the adapted observation space for the Waypoint environment
         # ang_vel, ang_pos, lin_vel, lin_pos, quaternion
@@ -146,7 +147,37 @@ class QuadXWaypoint(QuadXBaseEnv):
         """
         return self.info_state
 
+    def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        """
+        Returns:
+        -------
+            state, reward, termination, truncation, info
 
+        """
+        # unsqueeze the action to be usable in aviary
+        self.action = action.copy()
+
+        # reset the reward and set the action
+        self.reward = -0.1
+        self.env.set_setpoint(0, action)
+
+        # step through env, the internal env updates a few steps before the outer env
+        for _ in range(self.env_step_ratio):
+            # if we've already ended, don't continue
+            if self.termination or self.truncation:
+                break
+
+            self.env.step()
+
+            # compute state and done
+            self.compute_state()
+            self.prev_aux_state = self.state["auxiliary"].squeeze()
+            self.compute_term_trunc_reward()
+
+        # increment step count
+        self.step_count += 1
+
+        return self.state, self.reward, self.termination, self.truncation, self.info
 
     def compute_state(self):
         """Compute the state of the QuadX."""
@@ -173,26 +204,10 @@ class QuadXWaypoint(QuadXBaseEnv):
         self.state["targ_distance"] = np.array([norm_targ_distance], dtype=np.float64)
         self.state["lin_vel"] = np.array([lin_vel/np.linalg.norm(lin_vel)], dtype=np.float64)
         self.state["altitude"] = np.array([norm_altitude], dtype=np.float64)
-        self.state["auxiliary"] = np.array([self.aux_state], dtype=np.float64)
+        self.state["auxiliary"] = np.array([self.prev_aux_state], dtype=np.float64)
         self.state["angular_vel"] = np.array([ang_vel], dtype=np.float64)
         self.state["angular_pos"] = np.array([ang_pos], dtype=np.float64)
 
-        '''# Normalise
-        norm_state = self.normaliser.simple_normaliser(lin_pos=lin_pos,
-                                                       lin_vel=lin_vel,
-                                                       target_delta=target_delta,
-                                                       prev_action=self.action,
-                                                       aux_state=aux_state)
-        '''
-        # Adapt the state dictionary
-        '''self.state["ang_vel"] = np.array([ang_vel], dtype=np.float64)
-        self.state["ang_pos"] = np.array([ang_pos], dtype=np.float64)
-        self.state["lin_vel"] = np.array([lin_vel], dtype=np.float64)
-        self.state["lin_pos"] = np.array([lin_pos], dtype=np.float64)
-        self.state["quaternion"] = np.array([quaternion], dtype=np.float64)
-        self.state["prev_action"] = np.array([self.action], dtype=np.float64)
-        self.state["auxiliary"] = np.array([aux_state], dtype=np.float64)
-        self.state["target_delta"] = np.array([target_delta], dtype=np.float64)'''
 
     def compute_target_delta(self, ang_pos, lin_pos,
                              quaternion):  # TODO: Consider adding ang_pos, quaternion to the as different options for the delta calculation.
@@ -206,10 +221,17 @@ class QuadXWaypoint(QuadXBaseEnv):
         """Computes the termination, truncation, and reward based on the current state."""
         distance_target_reward = -(self.state["targ_distance"])
         distance_ground_reward = -5 * (0.2 - self.state["altitude"]) if self.state["altitude"] < 0.2 else 0  # 5m above ground
-        smooth_control_reward = np.linalg.norm(self.state["auxiliary"] - self.action.copy())/np.sqrt(12*np.pi**2 + (16/25))
-        smooth_ang_vel_reward = np.linalg.norm(self.state["angular_vel"])/np.sqrt(3)/np.sqrt(3*np.pi**2)
+        smooth_control_reward = -np.linalg.norm(self.prev_aux_state - self.action.copy())/np.sqrt(12*np.pi**2 + (16/25))
+        smooth_ang_vel_reward = -np.linalg.norm(self.state["angular_vel"])/np.sqrt(3)/np.sqrt(3*np.pi**2)
 
         self.reward = 1/4 * distance_target_reward + 1/4 * distance_ground_reward + 1/4 * smooth_control_reward + 1/4 * smooth_ang_vel_reward
+        self.info_state["reward"] = {
+            "distance_target_reward": distance_target_reward,
+            "distance_ground_reward": distance_ground_reward,
+            "smooth_control_reward": smooth_control_reward,
+            "smooth_ang_vel_reward": smooth_ang_vel_reward,
+        }
+
         agent_lin_pos = self.info_state["lin_pos"]
 
         if self.step_count > self.max_steps:
@@ -217,7 +239,7 @@ class QuadXWaypoint(QuadXBaseEnv):
 
         # if anything hits the floor, basically game over
         if np.any(self.env.contact_array[self.env.planeId]):
-            self.reward = -5.0
+            self.reward = -500.0
             self.info["collision"] = True
             self.termination |= True
 
