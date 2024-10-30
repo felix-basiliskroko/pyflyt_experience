@@ -8,5 +8,10 @@ def register_custom_envs():
         entry_point="Envs.WaypointEnv:QuadXWaypoint",
     )
 
+    register(
+        id="SingleWaypointQuadXEnv-v0",
+        entry_point="Envs.static_waypoint:SingleWaypointQuadXEnv",
+    )
+
 
 register_custom_envs()
