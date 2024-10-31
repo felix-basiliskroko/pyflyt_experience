@@ -36,9 +36,10 @@ def plot_trajectory_with_target(trajectory_points, target):
     plt.show()
 
 
-env = gym.make("Quadx-Waypoint-v0", render_mode=None)
+env_id = "SingleWaypointQuadXEnv-v0"
+env = gym.make(env_id, render_mode="human")
 model = PPO("MultiInputPolicy", env=env)
-model.load("./checkpoints/SimpleObs/Smooth-Control-Reward/best_model", deterministic=True)
+model.load("./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/FirstRun/best_model", deterministic=True)
 agent_pos = []
 
 term, trunc = False, False
@@ -49,14 +50,15 @@ for _ in range(1):
     # Evaluate the agent
     while not (term or trunc):
         action, _ = model.predict(obs, deterministic=False)
-        action = action.squeeze(0)
+        # action = action.squeeze(0)
         obs, rew, term, trunc, _ = env.step(action)
-        info_state = env.get_info_state()
-        print(f'Current position: {info_state["lin_pos"]}; distance to target: {np.linalg.norm(info_state["lin_pos"] - env.waypoint)}')
-        print(f'Action taken: {action}, with reward: {rew}')
+        print(f'Observation: {obs}')
+        # info_state = env.get_info_state()
+        # print(f'Current position: {info_state["lin_pos"]}; distance to target: {np.linalg.norm(info_state["lin_pos"] - env.waypoint)}')
+        # print(f'Action taken: {action}, with reward: {rew}')
         # print(f'Current waypoint: {info_state["lin_pos"]}')
         # print(f'Current velocity: {info_state["lin_vel"]/np.linalg.norm(info_state["lin_vel"])}')
-        agent_pos.append(info_state['lin_pos'])
+        # agent_pos.append(info_state['lin_pos'])
 
         ep_reward += rew
 

@@ -9,7 +9,7 @@ import numpy as np
 
 env = gym.make("Quadx-Waypoint-v0", render_mode=None)
 model = PPO("MultiInputPolicy", env=env)
-model.load("./checkpoints/SimpleObs/Smooth-Control-Reward/best_model", deterministic=True)
+model.load("./checkpoints/SimpleObs/Smooth-Control-Reward-v2/best_model", deterministic=False)
 agent_pos = []
 
 term, trunc = False, False
