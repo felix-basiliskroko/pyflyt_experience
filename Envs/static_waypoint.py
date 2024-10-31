@@ -185,7 +185,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self.info["num_targets_reached"] = self.waypoints.num_targets_reached
 
         los_reward = ((np.pi/2 - np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"])) + (np.pi/2 - np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"]))) - np.pi
-        # -2*pi if the agent is facing the opposite direction of the target; 0 if the agent is perfectly aligned with the target
+        # -4*pi if the agent is facing the opposite direction of the target; 0 if the agent is perfectly aligned with the target
         altitude_reward = self.state["altitude"]  # Negative altitude as reward
         smooth_reward = -np.linalg.norm(self.state["aux_state"] - self.action)  # Negative smooth control reward
 
