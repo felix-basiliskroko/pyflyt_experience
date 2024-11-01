@@ -165,7 +165,10 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.state = new_state
 
     def compute_term_trunc_reward(self):
-        los_reward = np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) + np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"])
+        # los_reward = np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) + np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"])
+        # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
+
+        los_reward = np.pi - np.abs(np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"]) - np.pi)
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         smooth_reward = np.linalg.norm(self.state["aux_state"] - self.action)  # Smooth control reward
