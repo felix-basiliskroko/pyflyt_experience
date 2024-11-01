@@ -83,6 +83,11 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             "scaled_smooth_reward": 0.0,
         }
 
+        # Reward scaling to be in the range [-2*pi, 0]
+        self.reward_min, self.reward_max = -2*np.pi, 0.0
+        self.altitude_min, self.altitude_max = 0.0, 1.0
+        self.smooth_max, self.smooth_min = 0.0, 1/3 * np.linalg.norm(np.array([2*np.pi, 2*np.pi, 2*np.pi, 2*np.pi, 0.8]))
+
         self.waypoints = WaypointHandler(
             enable_render=self.render_mode is not None,
             num_targets=num_targets,
@@ -184,24 +189,18 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self.info["env_complete"] = self.waypoints.all_targets_reached
             self.info["num_targets_reached"] = self.waypoints.num_targets_reached
 
-        los_reward = ((np.pi/2 - np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"])) + (np.pi/2 - np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"]))) - np.pi
-        # -4*pi if the agent is facing the opposite direction of the target; 0 if the agent is perfectly aligned with the target
-        altitude_reward = self.state["altitude"]  # Negative altitude as reward
-        smooth_reward = -np.linalg.norm(self.state["aux_state"] - self.action)  # Negative smooth control reward
+        los_reward = np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) + np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"])
+        # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
+
+        smooth_reward = np.linalg.norm(self.state["aux_state"] - self.action)  # Smooth control reward
 
         # Min-Max scaling to ensure all rewards are in the range [-2*pi, 0]
-        scaled_los_reward = los_reward
-
-
-        scaled_altitude_reward = (altitude_reward * 2*np.pi) - 2*np.pi
-
-        smooth_reward_min = -np.linalg.norm(np.array([2*np.pi, 2*np.pi, 2*np.pi, 2*np.pi, 0.8]))
-        smooth_reward_max = 0.0
-        scaled_smooth_reward = (((smooth_reward - smooth_reward_min) / (smooth_reward_max - smooth_reward_min)) * 2*np.pi) - 2*np.pi
+        # Formula used: "https://sourabharsh.medium.com/how-to-apply-min-max-normalization-to-your-data-f976d1633d2b"
+        scaled_los_reward = los_reward - 2*np.pi
+        scaled_smooth_reward = ((smooth_reward - self.smooth_min) / (self.smooth_max - self.smooth_min))*(self.reward_max - self.reward_min) + self.reward_min
 
         self.reward_info["scaled_los_reward"] = scaled_los_reward
-        self.reward_info["scaled_altitude_reward"] = scaled_altitude_reward
         self.reward_info["scaled_smooth_reward"] = scaled_smooth_reward
 
-        reward = 0.2 * scaled_los_reward + 0.6 * scaled_altitude_reward + 0.2 * scaled_smooth_reward
+        reward = 0.8 * scaled_los_reward + 0.2 * scaled_smooth_reward
         self.reward = reward[0]
