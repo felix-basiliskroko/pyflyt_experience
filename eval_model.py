@@ -9,7 +9,7 @@ import numpy as np
 env_id = "SingleWaypointQuadXEnv-v0"
 env = gym.make(env_id, render_mode="human")
 model = PPO("MultiInputPolicy", env=env)
-model.load("./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs/best_model", deterministic=False)
+model.load("./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted/best_model", deterministic=True)
 agent_pos = []
 
 term, trunc = False, False
@@ -20,7 +20,7 @@ ep_reward = 0
 for _ in range(1):
     # Evaluate the agent
     while not (term or trunc):
-        action, _ = model.predict(obs, deterministic=False)
+        action, _ = model.predict(obs, deterministic=True)
         # action = action.squeeze(0)
         obs, rew, term, trunc, _ = env.step(action)
         reward_info = env.reward_info
