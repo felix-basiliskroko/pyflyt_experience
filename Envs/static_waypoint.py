@@ -39,7 +39,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
             flight_mode: int = 0,
-            flight_dome_size: float = 50.0,
+            flight_dome_size: float = 15.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
             agent_hz: int = 30,
@@ -79,14 +79,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.state = None
         self.reward_info = {
             "scaled_los_reward": 0.0,
-            "scaled_altitude_reward": 0.0,
             "scaled_smooth_reward": 0.0,
         }
 
         # Reward scaling to be in the range [-2*pi, 0]
         self.reward_min, self.reward_max = -2*np.pi, 0.0
-        self.altitude_min, self.altitude_max = 0.0, 1.0
-        self.smooth_max, self.smooth_min = 0.0, 1/3 * np.linalg.norm(np.array([2*np.pi, 2*np.pi, 2*np.pi, 2*np.pi, 0.8]))
+        self.smooth_min, self.smooth_max = 0.0, np.linalg.norm(np.array([2*np.pi, 2*np.pi, 2*np.pi, 0.8]))
 
         self.waypoints = WaypointHandler(
             enable_render=self.render_mode is not None,
@@ -152,6 +150,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             t_el_ang = np.arctan2(t_xz_proj[1], t_xz_proj[0])
             a_el_ang = np.arctan2(a_xz_proj[1], a_xz_proj[0])
 
+            assert np.all(np.abs([t_az_ang, t_el_ang, a_az_ang, a_el_ang]) <= np.pi), "Angles should be in the range [-pi, pi]"
+
             new_state = dict()
             new_state["t_azimuth_angle"] = np.array([t_az_ang])
             new_state["t_elevation_angle"] = np.array([t_el_ang])
@@ -167,13 +167,13 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
     def compute_term_trunc_reward(self):
         """Handle termination, truncation, and reward specifically for single waypoint."""
         if np.any(self.env.contact_array[self.env.planeId]):
-            self.reward = -100.0
+            self.reward = -1000.0
             self.info["collision"] = True
             self.termination |= True
 
         # exceed flight dome
         if np.linalg.norm(self.env.state(0)[-1]) > self.flight_dome_size:
-            self.reward = -100.0
+            self.reward = -1000.0
             self.info["out_of_bounds"] = True
             self.termination |= True
 
@@ -196,11 +196,15 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         # Min-Max scaling to ensure all rewards are in the range [-2*pi, 0]
         # Formula used: "https://sourabharsh.medium.com/how-to-apply-min-max-normalization-to-your-data-f976d1633d2b"
-        scaled_los_reward = los_reward - 2*np.pi
-        scaled_smooth_reward = ((smooth_reward - self.smooth_min) / (self.smooth_max - self.smooth_min))*(self.reward_max - self.reward_min) + self.reward_min
+        scaled_los_reward = -(los_reward)
+        # scaled_smooth_reward = ((smooth_reward - self.smooth_min) / (self.smooth_max - self.smooth_min))*(self.reward_max - self.reward_min) + self.reward_min
+        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-2*np.pi)
 
         self.reward_info["scaled_los_reward"] = scaled_los_reward
         self.reward_info["scaled_smooth_reward"] = scaled_smooth_reward
+
+        assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
+        assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
 
         reward = 0.8 * scaled_los_reward + 0.2 * scaled_smooth_reward
         self.reward = reward[0]

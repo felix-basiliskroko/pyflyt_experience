@@ -23,7 +23,7 @@ smooth_rew_min, smooth_rew_max = np.inf, -np.inf
 los_rew_min, los_rew_max = np.inf, -np.inf
 
 
-for _ in tqdm(range(1_000)):
+for _ in tqdm(range(10_000)):
     while not (term or trunc):
         new_action = env.action_space.sample()
         # new_action = np.array([0.0, 0.0, 0.0, 0.0])
@@ -41,12 +41,12 @@ for _ in tqdm(range(1_000)):
 
         if reward_info["scaled_los_reward"] > los_rew_max:
             los_rew_max = reward_info["scaled_los_reward"]
-        # print(f'Action - aux_state: {new_action - prev_aux_state} - its L2 norm: {np.linalg.norm(new_action - prev_aux_state)}; ("scaled_smooth_reward": {reward_info["scaled_smooth_reward"]})')
-        # print(f'Absolute difference in azimuth angle: {np.abs(obs["t_azimuth_angle"] - obs["a_azimuth_angle"])}')
-        # print(f'Absolute difference in elevation angle: {np.abs(obs["t_elevation_angle"] - obs["a_elevation_angle"])}')
-        # print(f'los_reward: {reward_info["scaled_los_reward"]}')
-        # print("-------------------------------------------------------------------------------------------------------")
-        # print(f'Reward: {rew}')
+        print(f'Action - aux_state: {new_action - prev_aux_state} - its L2 norm: {np.linalg.norm(new_action - prev_aux_state)}; ("scaled_smooth_reward": {reward_info["scaled_smooth_reward"]})')
+        print(f'Absolute difference in azimuth angle: {np.abs(obs["t_azimuth_angle"] - obs["a_azimuth_angle"])}')
+        print(f'Absolute difference in elevation angle: {np.abs(obs["t_elevation_angle"] - obs["a_elevation_angle"])}')
+        print(f'los_reward: {reward_info["scaled_los_reward"]}')
+        print("-------------------------------------------------------------------------------------------------------")
+        print(f'Reward: {rew}')
         prev_aux_state = obs["aux_state"]
     env.reset()
     prev_aux_state = obs["aux_state"]
