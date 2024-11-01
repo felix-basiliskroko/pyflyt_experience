@@ -165,30 +165,6 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.state = new_state
 
     def compute_term_trunc_reward(self):
-        """Handle termination, truncation, and reward specifically for single waypoint."""
-        if np.any(self.env.contact_array[self.env.planeId]):
-            self.reward = -1000.0
-            self.info["collision"] = True
-            self.termination |= True
-
-        # exceed flight dome
-        if np.linalg.norm(self.env.state(0)[-1]) > self.flight_dome_size:
-            self.reward = -1000.0
-            self.info["out_of_bounds"] = True
-            self.termination |= True
-
-        # target reached
-        if self.waypoints.target_reached:
-            self.reward = 100.0
-
-            # advance the targets
-            self.waypoints.advance_targets()
-
-            # update infos and dones
-            self.truncation |= self.waypoints.all_targets_reached
-            self.info["env_complete"] = self.waypoints.all_targets_reached
-            self.info["num_targets_reached"] = self.waypoints.num_targets_reached
-
         los_reward = np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) + np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"])
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
@@ -208,3 +184,28 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         reward = 0.8 * scaled_los_reward + 0.2 * scaled_smooth_reward
         self.reward = reward[0]
+
+        """Handle termination, truncation, and reward specifically for single waypoint."""
+        if np.any(self.env.contact_array[self.env.planeId]):
+            self.reward = -500.0
+            print(f'Collision detected!; Reward set to: {self.reward}')
+            self.info["collision"] = True
+            self.termination |= True
+
+        # exceed flight dome
+        if np.linalg.norm(self.env.state(0)[-1]) > self.flight_dome_size:
+            self.reward = -500.0
+            self.info["out_of_bounds"] = True
+            self.termination |= True
+
+        # target reached
+        if self.waypoints.target_reached:
+            self.reward = 500.0
+
+            # advance the targets
+            self.waypoints.advance_targets()
+
+            # update infos and dones
+            self.truncation |= self.waypoints.all_targets_reached
+            self.info["env_complete"] = self.waypoints.all_targets_reached
+            self.info["num_targets_reached"] = self.waypoints.num_targets_reached

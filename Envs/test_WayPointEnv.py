@@ -23,10 +23,10 @@ smooth_rew_min, smooth_rew_max = np.inf, -np.inf
 los_rew_min, los_rew_max = np.inf, -np.inf
 
 
-for _ in tqdm(range(10_000)):
+for _ in tqdm(range(1)):
     while not (term or trunc):
-        new_action = env.action_space.sample()
-        # new_action = np.array([0.0, 0.0, 0.0, 0.0])
+        # new_action = env.action_space.sample()
+        new_action = np.array([0.0, 0.0, 0.0, 0.0])
         # new_action = np.array([np.pi, np.pi, np.pi, 0.8])
         # new_action = np.array([0.8, 0.8, 0.8, 0.8])
         obs, rew, term, trunc, _ = env.step(new_action)
