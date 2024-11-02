@@ -17,7 +17,7 @@ eval_freq = 20_000
 log_root_dir = "./tensorboard_log/StaticWaypointEnv"
 check_root_dir = "./checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "LOSAngleObs-Adjusted"
+mod = "LOSAngleObs-Adjusted-OrnHeight"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 # env_id = "PyFlyt/QuadX-Waypoints-v2"
@@ -34,7 +34,7 @@ eval_env = make_vec_env(env_id=env_id)
 eval_env = VecNormalize(eval_env, norm_obs=False, norm_reward=False, training=False)
 eval_callback = EvalCallback(eval_env, best_model_save_path=f"./{check_root_dir}/{run}/{mod}",
                  log_path=f"./{check_root_dir}/{run}/{mod}", eval_freq=eval_freq,
-                 deterministic=True, render=False)
+                 deterministic=True, render=True,n_eval_episodes=10)
 device = "cuda" if t.cuda.is_available() else "cpu"
 
 

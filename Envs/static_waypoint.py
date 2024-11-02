@@ -39,7 +39,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
             flight_mode: int = 0,
-            flight_dome_size: float = 15.0,
+            flight_dome_size: float = 5.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
             agent_hz: int = 30,
@@ -64,10 +64,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             render_resolution (tuple[int, int]): render_resolution.
 
         """
+        self.orn_height = 3.0
         super().__init__(
             start_pos=np.array([[0.0, 0.0, 1.0]]),
             flight_mode=flight_mode,
             flight_dome_size=flight_dome_size,
+            start_orn=np.array([[0.0, 0.0, self.orn_height]]),
             max_duration_seconds=max_duration_seconds,
             angle_representation=angle_representation,
             agent_hz=agent_hz,
@@ -93,7 +95,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance=goal_reach_distance,
             goal_reach_angle=goal_reach_angle,
             flight_dome_size=flight_dome_size,
-            min_height=0.1,
+            min_height=self.orn_height,
             np_random=self.np_random,
         )
 
@@ -158,7 +160,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["a_azimuth_angle"] = np.array([a_az_ang])
             new_state["a_elevation_angle"] = np.array([a_el_ang])
             new_state["aux_state"] = super().compute_auxiliary()
-            new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < 1.0 else np.array([1.0])
+            new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.orn_height else np.array([self.orn_height])
         else:
             raise NotImplementedError("Only quaternion representation is supported for now.")
 
@@ -191,13 +193,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         """Handle termination, truncation, and reward specifically for single waypoint."""
         if np.any(self.env.contact_array[self.env.planeId]):
             self.reward = -500.0
-            print(f'Collision detected!; Reward set to: {self.reward}')
             self.info["collision"] = True
             self.termination |= True
 
         # exceed flight dome
         if np.linalg.norm(self.env.state(0)[-1]) > self.flight_dome_size:
-            self.reward = -500.0
+            # self.reward = -500.0
             self.info["out_of_bounds"] = True
             self.termination |= True
 
