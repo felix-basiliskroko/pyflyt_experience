@@ -9,7 +9,7 @@ import numpy as np
 env_id = "SingleWaypointQuadXEnv-v0"
 env = gym.make(env_id, render_mode="human")
 model = PPO("MultiInputPolicy", env=env)
-model.load("./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted/best_model", deterministic=True)
+model.load("./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted-OrnHeight/best_model", deterministic=True)
 agent_pos = []
 
 term, trunc = False, False

@@ -17,7 +17,7 @@ eval_freq = 20_000
 log_root_dir = "./tensorboard_log/StaticWaypointEnv"
 check_root_dir = "./checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "LOSAngleObs-Adjusted-OrnHeight"
+mod = "LOSAngleObs-Adjusted-AngVel"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 # env_id = "PyFlyt/QuadX-Waypoints-v2"
@@ -26,12 +26,9 @@ env_id = "SingleWaypointQuadXEnv-v0"
 
 
 vec_env = make_vec_env(env_id=env_id, n_envs=1)
-# vec_env = gym.make(env_id, render_mode=None)
-vec_env = VecNormalize(vec_env, norm_obs=False, norm_reward=False)
 policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
 
 eval_env = make_vec_env(env_id=env_id)
-eval_env = VecNormalize(eval_env, norm_obs=False, norm_reward=False, training=False)
 eval_callback = EvalCallback(eval_env, best_model_save_path=f"./{check_root_dir}/{run}/{mod}",
                  log_path=f"./{check_root_dir}/{run}/{mod}", eval_freq=eval_freq,
                  deterministic=True, render=True,n_eval_episodes=10)

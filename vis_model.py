@@ -70,7 +70,7 @@ def vis_model(env_id="SingleWaypointQuadXEnv-v0",
 
 #  ---------------------------------------------------------------------------------------------------------------------
 
-model_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted-OrnHeight/best_model"
+model_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted-AngVel/best_model"
 env_id = "SingleWaypointQuadXEnv-v0"
 
 deterministic = False

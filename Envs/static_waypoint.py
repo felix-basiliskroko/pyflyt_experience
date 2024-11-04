@@ -107,6 +107,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 "a_azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
                 "a_elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
                 "aux_state": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
+                "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
                 "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
             })
 
@@ -122,6 +123,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         """
         super().begin_reset(seed, options)
+
         self.waypoints.reset(self.env, self.np_random)
         self.info["num_targets_reached"] = 0
         super().end_reset()
@@ -132,6 +134,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             "a_azimuth_angle": np.zeros(1),
             "a_elevation_angle": np.zeros(1),
             "aux_state": np.zeros(4),
+            "ang_vel": np.zeros(3),
             "altitude": np.zeros(1),
         }
 
@@ -142,7 +145,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # super().compute_state()
         # Since there's only one waypoint, we take the first and only target delta
         if self.angle_representation == 1:
-            _, _, lin_vel, lin_pos, _ = super().compute_attitude()
+            ang_vel, _, lin_vel, lin_pos, _ = super().compute_attitude()
 
             t_xy_proj, a_xy_proj = self.waypoints.targets[0][:2], lin_vel[:2]
             t_az_ang = np.arctan2(t_xy_proj[1], t_xy_proj[0])
@@ -160,6 +163,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["a_azimuth_angle"] = np.array([a_az_ang])
             new_state["a_elevation_angle"] = np.array([a_el_ang])
             new_state["aux_state"] = super().compute_auxiliary()
+            new_state["ang_vel"] = ang_vel
             new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.orn_height else np.array([self.orn_height])
         else:
             raise NotImplementedError("Only quaternion representation is supported for now.")
