@@ -5,7 +5,50 @@ from Envs.WaypointEnv import QuadXWaypoint
 from Envs import register
 import matplotlib.pyplot as plt
 import numpy as np
-from stable_baselines3.common.evaluation import evaluate_policy
+# from stable_baselines3.common.evaluation import evaluate_policy
+from Evaluation.evaluation import evaluate_policy
+from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
+from stable_baselines3.common.monitor import Monitor
+
+
+def plot_thrust_curve(model, vec_env):
+    episode_rewards, episode_lengths, all_obs, all_infos = evaluate_policy(model, vec_env, n_eval_episodes=1, render=render_m, deterministic=True, return_episode_rewards=True)
+    thrusts = []
+    ep_thrust = []
+
+    trajectories = []
+
+    # Iterate through each sublist (each trajectory)
+    for sublist in all_obs:
+        trajectory = []
+        for record in sublist:
+            # Extract the fourth element of the aux_state array
+            print(record)
+            aux_state_fourth_element = record['aux_state'][0][3]  # Assumes aux_state is a 2D array and we need the 4th element
+            trajectory.append(aux_state_fourth_element)
+        trajectories.append(trajectory)
+        trajectory = []
+
+    # thrusts.append([obs["aux_state"][3] for obs in ep])
+    # Create a figure and an axes.
+    plt.figure(figsize=(8, 6))
+
+    # Plot each sublist
+    for index, sublist in enumerate(trajectories):
+        plt.plot(sublist, label=f'Series {index + 1}')
+
+    # Add a legend
+    plt.legend()
+
+    # Add title and labels
+    plt.title('Thrusts over time')
+    plt.xlabel('timestep')
+    plt.ylabel('thrust-value')
+
+    # Show the plot
+    plt.show()
+
+
 
 
 def plot_trajectory_with_target(trajectory_points, target):
@@ -70,16 +113,46 @@ def vis_model(env_id="SingleWaypointQuadXEnv-v0",
 
 #  ---------------------------------------------------------------------------------------------------------------------
 
-model_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted-AngVel/best_model"
+run_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/tmp"
+model_path = run_path + "/best_model"
+eval_file_path = run_path + "/evaluations.npz"
 env_id = "SingleWaypointQuadXEnv-v0"
 
-deterministic = False
-render = "human"  # #None
+deterministic = True
+render = None  # #None
+render_m = False
+num_eval_eps = 1
 
-env = gym.make(env_id, render_mode=render)
-model = PPO("MultiInputPolicy", env=env)
-model.load(model_path, deterministic=deterministic)
-mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10, render=True, deterministic=deterministic, return_episode_rewards=True)
+print(f'Over {num_eval_eps} episodes, with deterministic set to {deterministic}:')
+
+print("--------------------------- evaluation.npz ----------------------------------")
+
+evaluations = np.load(eval_file_path)
+print(f'Mean reward: {np.mean(evaluations["results"][1], axis=0)}, with standard deviation: {np.std(evaluations["results"][1], axis=0)}')
+print(f'Mean episode lengths: {np.mean(evaluations["ep_lengths"][1], axis=0)}, with standard deviation: {np.std(evaluations["ep_lengths"][1], axis=0)}')
+
+print("-----------------------------------------------------------------------------")
+print("---------------------------- evaluate_policy --------------------------------")
+
+# vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=42)
+vec_env = gym.make(env_id, render_mode=render)
+# print(f'Wrapped in Monitor: {is_vecenv_wrapped(vec_env, VecMonitor) or vec_env.env_is_wrapped(Monitor)[0]}')
+observations = vec_env.reset()
+
+model = PPO.load(model_path, deterministic=deterministic)
+plot_thrust_curve(model, vec_env)
+
+# episode_rewards, episode_lengths, all_obs, all_infos = evaluate_policy(model, vec_env, n_eval_episodes=num_eval_eps, render=render_m, deterministic=deterministic, return_episode_rewards=True)
+print(f'Amount of information: {len(all_infos)}')
+print(f'Information: {all_infos}')
+mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
+mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
+
+print(f'Rewards: {episode_rewards}')
+print(f'Episode lengths: {episode_lengths}')
 print(f'Mean reward: {mean_reward}, Standard deviation of reward: {std_reward}')
+print(f'Mean episode length: {mean_ep_length}, Standard deviation of episode length: {std_ep_length}')
+
+print("-----------------------------------------------------------------------------")
 
 #  ---------------------------------------------------------------------------------------------------------------------

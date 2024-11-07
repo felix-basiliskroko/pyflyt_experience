@@ -79,10 +79,6 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         # define waypoints
         self.state = None
-        self.reward_info = {
-            "scaled_los_reward": 0.0,
-            "scaled_smooth_reward": 0.0,
-        }
 
         # Reward scaling to be in the range [-2*pi, 0]
         self.reward_min, self.reward_max = -2*np.pi, 0.0
@@ -145,7 +141,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # super().compute_state()
         # Since there's only one waypoint, we take the first and only target delta
         if self.angle_representation == 1:
-            ang_vel, _, lin_vel, lin_pos, _ = super().compute_attitude()
+            ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
 
             t_xy_proj, a_xy_proj = self.waypoints.targets[0][:2], lin_vel[:2]
             t_az_ang = np.arctan2(t_xy_proj[1], t_xy_proj[0])
@@ -165,6 +161,15 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["aux_state"] = super().compute_auxiliary()
             new_state["ang_vel"] = ang_vel
             new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.orn_height else np.array([self.orn_height])
+
+            # Store non-observable states (for debugging/evaluation purposes)
+            self.info["non_observables"] = {
+                "angular_position": ang_pos,
+                "quaternion": quaternion,
+                "linear_position": lin_pos,
+                "linear_velocity": lin_vel,
+            }
+
         else:
             raise NotImplementedError("Only quaternion representation is supported for now.")
 
@@ -185,8 +190,10 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # scaled_smooth_reward = ((smooth_reward - self.smooth_min) / (self.smooth_max - self.smooth_min))*(self.reward_max - self.reward_min) + self.reward_min
         scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-2*np.pi)
 
-        self.reward_info["scaled_los_reward"] = scaled_los_reward
-        self.reward_info["scaled_smooth_reward"] = scaled_smooth_reward
+        self.info["reward_components"] = {
+            "scaled_los_reward": scaled_los_reward,
+            "scaled_smooth_reward": scaled_smooth_reward,
+        }
 
         assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
         assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
@@ -217,3 +224,6 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self.truncation |= self.waypoints.all_targets_reached
             self.info["env_complete"] = self.waypoints.all_targets_reached
             self.info["num_targets_reached"] = self.waypoints.num_targets_reached
+
+    def get_info(self):
+        return self.info
