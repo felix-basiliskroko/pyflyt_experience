@@ -135,6 +135,24 @@ def aggregate_reward_eval(model, env, n_eval_episodes, render, reward_name, dete
     return reward_components
 
 
+def aggregate_thrust(model, env, n_eval_episodes, render, deterministic=True) -> dict[str, list[list[np.array]]]:
+    """
+    Evaluate the model on the environment for a given number of episodes and aggregate the values of the thrust.
+    :param model: PPO model
+    :param env: Vectorized environment
+    :param n_eval_episodes: Number of episodes to evaluate the model on
+    :param render: Whether to render the environment or not
+    :param deterministic: Whether to use deterministic actions
+    :return: Dictionary containing the aggregated values of the thrust
+    """
+    result = aggregate_eval(model, env, n_eval_episodes=n_eval_episodes, render=render, var_name=['aux_state'], deterministic=deterministic)
+    res = {"thrust": []}
+
+    for ep in result["aux_state"]:
+        res["thrust"].append([np.linalg.norm(i[3]) for i in ep])
+
+    return res
+
 def aggregate_smoothness(model, env, n_eval_episodes, render, deterministic=True) -> dict[str, list[list[np.array]]]:
     """
     Evaluate the model on the environment for a given number of episodes and aggregate the values of the smoothness.
@@ -209,7 +227,7 @@ model_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleO
 env_id = "SingleWaypointQuadXEnv-v0"
 
 render = False
-num_eval_eps = 5
+num_eval_eps = 50
 
 # Create model and environment
 env = gym.make(env_id, render_mode="human" if render else None)
@@ -222,13 +240,12 @@ model = PPO.load(model_path, deterministic=True)
 
 print("---------------------------- evaluate_policy --------------------------------")
 
-# visualize_model(model, env, num_eval_eps, render, verbose=False)
-# result = aggregate_eval(model, env, num_eval_eps, render, var_name="scaled_los_reward")
+visualize_model(model, env, num_eval_eps, render, verbose=False)
+# result = aggregate_eval(model, env, num_eval_eps, render, var_name="aux_state")
+result = aggregate_thrust(model, env, num_eval_eps, render)
 # result = aggregate_reward_eval(model, env, num_eval_eps, render, "scaled_los_reward")
-# plot_eval(result, "scaled_los_reward", average=True)
+plot_eval(result, "thrust", average=True)
 # smoothness = aggregate_smoothness(model, env, num_eval_eps, render)
-
-
 
 print("---------------------------- evaluate_policy --------------------------------")
 

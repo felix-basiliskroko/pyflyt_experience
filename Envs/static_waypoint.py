@@ -79,10 +79,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         # define waypoints
         self.state = None
+        self.xyz_limit = np.pi
+        self.thrust_limit = 0.4
 
         # Reward scaling to be in the range [-2*pi, 0]
         self.reward_min, self.reward_max = -2*np.pi, 0.0
-        self.smooth_min, self.smooth_max = 0.0, np.linalg.norm(np.array([2*np.pi, 2*np.pi, 2*np.pi, 0.8]))
+        self.smooth_min, self.smooth_max = 0.0, np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit, self.thrust_limit]))
 
         self.waypoints = WaypointHandler(
             enable_render=self.render_mode is not None,
@@ -106,6 +108,24 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
                 "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
             })
+
+        high = np.array(
+            [
+                xyz_limit,
+                xyz_limit,
+                xyz_limit,
+                self.thrust_limit,
+            ]
+        )
+        low = np.array(
+            [
+                -xyz_limit,
+                -xyz_limit,
+                -xyz_limit,
+                0.0,
+            ]
+        )
+        self.action_space = spaces.Box(low=low, high=high, dtype=np.float64)
 
     def reset(
             self, *, seed: None | int = None, options: None | dict[str, Any] = dict()
