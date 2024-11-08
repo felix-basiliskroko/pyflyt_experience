@@ -198,7 +198,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
         assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
 
-        reward = 0.8 * scaled_los_reward + 0.2 * scaled_smooth_reward
+        reward = 1.0 * scaled_los_reward + 0.0 * scaled_smooth_reward
         self.reward = reward[0]
 
         """Handle termination, truncation, and reward specifically for single waypoint."""

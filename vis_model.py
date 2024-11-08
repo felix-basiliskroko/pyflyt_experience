@@ -11,44 +11,70 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is
 from stable_baselines3.common.monitor import Monitor
 
 
-def plot_thrust_curve(model, vec_env):
-    episode_rewards, episode_lengths, all_obs, all_infos = evaluate_policy(model, vec_env, n_eval_episodes=1, render=render_m, deterministic=True, return_episode_rewards=True)
-    thrusts = []
-    ep_thrust = []
+def plot_eval(results, var_name):
+    """
+    Plot the evaluation results.
 
-    trajectories = []
+    :param results: (dict) The evaluation results
+    """
 
-    # Iterate through each sublist (each trajectory)
-    for sublist in all_obs:
-        trajectory = []
-        for record in sublist:
-            # Extract the fourth element of the aux_state array
-            print(record)
-            aux_state_fourth_element = record['aux_state'][0][3]  # Assumes aux_state is a 2D array and we need the 4th element
-            trajectory.append(aux_state_fourth_element)
-        trajectories.append(trajectory)
-        trajectory = []
+    assert len(results.keys()) == 1, 'Only one variable can be plotted at a time.'
 
-    # thrusts.append([obs["aux_state"][3] for obs in ep])
-    # Create a figure and an axes.
     plt.figure(figsize=(8, 6))
 
-    # Plot each sublist
-    for index, sublist in enumerate(trajectories):
-        plt.plot(sublist, label=f'Series {index + 1}')
+    for index, sublist in enumerate(results[var_name]):
+        plt.plot(sublist, color="blue")
 
-    # Add a legend
     plt.legend()
 
     # Add title and labels
-    plt.title('Thrusts over time')
+    plt.title(f'{var_name} over time')
     plt.xlabel('timestep')
-    plt.ylabel('thrust-value')
+    plt.ylabel(f'{var_name}-value')
 
     # Show the plot
     plt.show()
 
 
+def aggregate_eval(model, env, n_eval_episodes, var_name):
+    '''
+    Evaluate the model on the environment for a given number of episodes and aggregate the values of a given variable.
+    :param model: PPO Model
+    :param env: Vectorized environment
+    :param n_eval_episodes: Number of episodes to evaluate the model on
+    :param var_name: Name(s) of the variable(s) to aggregate
+    :return: Dictionary containing the aggregated values of the variable(s)
+    '''
+    assert type(var_name) == str or type(var_name) == list, 'Variable name must be a string or a list of strings.'
+
+    episode_rewards, episode_lengths, all_obs, all_infos = evaluate_policy(model, vec_env, n_eval_episodes=5,
+                                                                           render=render_m, deterministic=True,
+                                                                           return_episode_rewards=True)
+    res = {}
+
+    if type(var_name) == list:
+        for var in var_name:
+            res[var] = []
+            if var in all_obs[0][0].keys():
+                for ep in all_obs:
+                    res[var].append([obs[var].squeeze() for obs in ep])
+            elif var in all_infos[0][0].keys():
+                for ep in all_infos:
+                    res[var].append([info[var].squeeze() for info in ep])
+            else:
+                raise ValueError(f'Variable names not found in observations or infos.')
+    else:
+        res[var_name] = []
+        if var_name in all_obs[0][0].keys():
+            for ep in all_obs:
+                res[var_name].append([obs[var_name].squeeze() for obs in ep])
+        elif var_name in all_infos[0][0].keys():
+            for ep in all_infos:
+                res[var_name].append([info[var_name].squeeze() for info in ep])
+        else:
+            raise ValueError(f'Variable name {var_name} not found in observations or infos.')
+
+    return res
 
 
 def plot_trajectory_with_target(trajectory_points, target):
@@ -113,7 +139,7 @@ def vis_model(env_id="SingleWaypointQuadXEnv-v0",
 
 #  ---------------------------------------------------------------------------------------------------------------------
 
-run_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/tmp"
+run_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted-AngVel"
 model_path = run_path + "/best_model"
 eval_file_path = run_path + "/evaluations.npz"
 env_id = "SingleWaypointQuadXEnv-v0"
@@ -121,17 +147,8 @@ env_id = "SingleWaypointQuadXEnv-v0"
 deterministic = True
 render = None  # #None
 render_m = False
-num_eval_eps = 1
+num_eval_eps = 20
 
-print(f'Over {num_eval_eps} episodes, with deterministic set to {deterministic}:')
-
-print("--------------------------- evaluation.npz ----------------------------------")
-
-evaluations = np.load(eval_file_path)
-print(f'Mean reward: {np.mean(evaluations["results"][1], axis=0)}, with standard deviation: {np.std(evaluations["results"][1], axis=0)}')
-print(f'Mean episode lengths: {np.mean(evaluations["ep_lengths"][1], axis=0)}, with standard deviation: {np.std(evaluations["ep_lengths"][1], axis=0)}')
-
-print("-----------------------------------------------------------------------------")
 print("---------------------------- evaluate_policy --------------------------------")
 
 # vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=42)
@@ -140,11 +157,24 @@ vec_env = gym.make(env_id, render_mode=render)
 observations = vec_env.reset()
 
 model = PPO.load(model_path, deterministic=deterministic)
-plot_thrust_curve(model, vec_env)
+result = aggregate_eval(model, vec_env, n_eval_episodes=num_eval_eps, var_name=['aux_state'])
+smoothness = []
+for ep in result["aux_state"]:
+    smooth_eps = [np.linalg.norm(i) for i in ep]
+    smoothness.append(smooth_eps)
 
-# episode_rewards, episode_lengths, all_obs, all_infos = evaluate_policy(model, vec_env, n_eval_episodes=num_eval_eps, render=render_m, deterministic=deterministic, return_episode_rewards=True)
-print(f'Amount of information: {len(all_infos)}')
-print(f'Information: {all_infos}')
+# print(f'Smoothness: {smoothness}')
+print(f'Auxiliary state: {result["aux_state"]}')
+tmp = {'smoothness': smoothness}
+
+plot_eval(tmp, 'smoothness')
+
+
+'''
+episode_rewards, episode_lengths, all_obs, all_infos = evaluate_policy(model, vec_env, n_eval_episodes=num_eval_eps, render=render_m, deterministic=deterministic, return_episode_rewards=True)
+print(f'Amount of information: {len(all_obs)}')
+print(len(all_obs[0]))
+print(f'Information: {all_obs}')
 mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
 mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
 
@@ -154,5 +184,5 @@ print(f'Mean reward: {mean_reward}, Standard deviation of reward: {std_reward}')
 print(f'Mean episode length: {mean_ep_length}, Standard deviation of episode length: {std_ep_length}')
 
 print("-----------------------------------------------------------------------------")
-
+'''
 #  ---------------------------------------------------------------------------------------------------------------------

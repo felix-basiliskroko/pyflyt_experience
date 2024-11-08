@@ -74,8 +74,12 @@ def evaluate_policy(
     n_envs = env.num_envs
     episode_rewards = []
     episode_lengths = []
+
     episode_obs = []
+    tmp_obs = []
+
     episode_infos = []
+    tmp_infos = []
 
     episode_counts = np.zeros(n_envs, dtype="int")
     # Divides episodes among different sub environments in the vector as evenly as possible
@@ -94,8 +98,8 @@ def evaluate_policy(
             deterministic=deterministic,
         )
         new_observations, rewards, dones, infos = env.step(actions)
-        episode_obs.append(new_observations)
-        episode_infos.append(infos[0])
+        tmp_obs.append(dict(new_observations.items()))
+        tmp_infos.append(dict(infos[0].items()))
 
         current_rewards += rewards
         current_lengths += 1
@@ -126,6 +130,10 @@ def evaluate_policy(
                     else:
                         episode_rewards.append(current_rewards[i])
                         episode_lengths.append(current_lengths[i])
+                        episode_obs.append(tmp_obs)
+                        episode_infos.append(tmp_infos)
+                        tmp_obs = []
+                        tmp_infos = []
                         episode_counts[i] += 1
                     current_rewards[i] = 0
                     current_lengths[i] = 0
