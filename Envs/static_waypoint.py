@@ -111,17 +111,17 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         high = np.array(
             [
-                xyz_limit,
-                xyz_limit,
-                xyz_limit,
+                self.xyz_limit,
+                self.xyz_limit,
+                self.xyz_limit,
                 self.thrust_limit,
             ]
         )
         low = np.array(
             [
-                -xyz_limit,
-                -xyz_limit,
-                -xyz_limit,
+                -self.xyz_limit,
+                -self.xyz_limit,
+                -self.xyz_limit,
                 0.0,
             ]
         )
@@ -206,9 +206,10 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         # Min-Max scaling to ensure all rewards are in the range [-2*pi, 0]
         # Formula used: "https://sourabharsh.medium.com/how-to-apply-min-max-normalization-to-your-data-f976d1633d2b"
-        scaled_los_reward = -(los_reward)
+        steepness = 4  # Used as a hyperparameter to control the steepness of the reward curve
+        scaled_los_reward = -(los_reward**steepness)
         # scaled_smooth_reward = ((smooth_reward - self.smooth_min) / (self.smooth_max - self.smooth_min))*(self.reward_max - self.reward_min) + self.reward_min
-        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-2*np.pi)
+        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-(2**steepness)*np.pi)
 
         self.info["reward_components"] = {
             "scaled_los_reward": scaled_los_reward,

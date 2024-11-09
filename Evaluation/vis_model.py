@@ -226,7 +226,7 @@ def visualize_model(model, env, n_eval_episodes, render, verbose=True):
 model_path = "./checkpoints/StaticWaypointEnv/SingleWaypointNavigation/LOSAngleObs-Adjusted-AngVel/best_model"
 env_id = "SingleWaypointQuadXEnv-v0"
 
-render = False
+render = True
 num_eval_eps = 50
 
 # Create model and environment
@@ -242,9 +242,9 @@ print("---------------------------- evaluate_policy ----------------------------
 
 visualize_model(model, env, num_eval_eps, render, verbose=False)
 # result = aggregate_eval(model, env, num_eval_eps, render, var_name="aux_state")
-result = aggregate_thrust(model, env, num_eval_eps, render)
+# result = aggregate_thrust(model, env, num_eval_eps, render)
 # result = aggregate_reward_eval(model, env, num_eval_eps, render, "scaled_los_reward")
-plot_eval(result, "thrust", average=True)
+# plot_eval(result, "thrust", average=True)
 # smoothness = aggregate_smoothness(model, env, num_eval_eps, render)
 
 print("---------------------------- evaluate_policy --------------------------------")
