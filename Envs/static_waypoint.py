@@ -39,7 +39,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
             flight_mode: int = 0,
-            flight_dome_size: float = 5.0,
+            flight_dome_size: float = 6.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
             agent_hz: int = 30,
@@ -65,26 +65,6 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         """
         self.orn_height = 3.0
-        super().__init__(
-            start_pos=np.array([[0.0, 0.0, 1.0]]),
-            flight_mode=flight_mode,
-            flight_dome_size=flight_dome_size,
-            start_orn=np.array([[0.0, 0.0, self.orn_height]]),
-            max_duration_seconds=max_duration_seconds,
-            angle_representation=angle_representation,
-            agent_hz=agent_hz,
-            render_mode=render_mode,
-            render_resolution=render_resolution,
-        )
-
-        # define waypoints
-        self.state = None
-        self.xyz_limit = np.pi
-        self.thrust_limit = 0.4
-
-        # Reward scaling to be in the range [-2*pi, 0]
-        self.reward_min, self.reward_max = -2*np.pi, 0.0
-        self.smooth_min, self.smooth_max = 0.0, np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit, self.thrust_limit]))
 
         self.waypoints = WaypointHandler(
             enable_render=self.render_mode is not None,
@@ -97,13 +77,34 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             np_random=self.np_random,
         )
 
+        # init_LOS = self.waypoints.targets[0] - np.array([[0.0, 0.0, self.orn_height]])
+        # unit_init_LOS = init_LOS/np.linalg.norm(init_LOS)
+
+        super().__init__(
+            start_pos=np.array([[0.0, 0.0, self.orn_height]]),
+            flight_mode=flight_mode,
+            flight_dome_size=flight_dome_size,
+            start_orn=np.array([[0.0, 0.0, 0.0]]),
+            max_duration_seconds=max_duration_seconds,
+            angle_representation=angle_representation,
+            agent_hz=agent_hz,
+            render_mode=render_mode,
+            render_resolution=render_resolution,
+        )
+
+        # define waypoints
+        self.state = None
+        self.xyz_limit = np.pi
+        self.thrust_limit = 0.8
+
+        # Reward scaling to be in the range [-2*pi, 0]
+        self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit, self.thrust_limit]))
+
         # Define observation space
         self.observation_space = spaces.Dict(
             {
-                "t_azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
-                "t_elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
-                "a_azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
-                "a_elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
+                "azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
+                "elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
                 "aux_state": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
                 "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
                 "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
@@ -145,50 +146,49 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         super().end_reset()
 
         self.state = {
-            "t_azimuth_angle": np.zeros(1),
-            "t_elevation_angle": np.zeros(1),
-            "a_azimuth_angle": np.zeros(1),
-            "a_elevation_angle": np.zeros(1),
+            "azimuth_angle": np.zeros(1),
+            "elevation_angle": np.zeros(1),
             "aux_state": np.zeros(4),
             "ang_vel": np.zeros(3),
             "altitude": np.zeros(1),
         }
 
+        self.info["waypoint"] = self.waypoints.targets[0]
+
         return self.state, self.info
+
+    def ang(self, v1, v2):
+        angle = np.arctan2(v2[1], v2[0]) - np.arctan2(v1[1], v1[0])
+        angle = (angle + np.pi) % (2 * np.pi) - np.pi
+        return angle
 
     def compute_state(self) -> None:
         """Computes the state for a single waypoint environment."""
-        # super().compute_state()
-        # Since there's only one waypoint, we take the first and only target delta
+
         if self.angle_representation == 1:
             ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
+            LOS = self.waypoints.targets[0] - lin_pos
+            LOS_xy_proj, LOS_xz_proj = LOS[:2]/np.linalg.norm(LOS[:2]), LOS[[0, 2]]/np.linalg.norm(LOS[[0, 2]])
+            vel_xy_proj, vel_xz_proj = lin_vel[:2]/np.linalg.norm(lin_vel[:2]), lin_vel[[0, 2]]/np.linalg.norm(lin_vel[[0, 2]])
 
-            t_xy_proj, a_xy_proj = self.waypoints.targets[0][:2], lin_vel[:2]
-            t_az_ang = np.arctan2(t_xy_proj[1], t_xy_proj[0])
-            a_az_ang = np.arctan2(a_xy_proj[1], a_xy_proj[0])
+            az_ang = self.ang(LOS_xy_proj, vel_xy_proj)
+            el_ang = self.ang(LOS_xz_proj, vel_xz_proj)
 
-            t_xz_proj, a_xz_proj = self.waypoints.targets[0][[0, 2]], lin_vel[[0, 2]]
-            t_el_ang = np.arctan2(t_xz_proj[1], t_xz_proj[0])
-            a_el_ang = np.arctan2(a_xz_proj[1], a_xz_proj[0])
-
-            assert np.all(np.abs([t_az_ang, t_el_ang, a_az_ang, a_el_ang]) <= np.pi), "Angles should be in the range [-pi, pi]"
+            assert np.all(np.abs([az_ang, el_ang]) <= np.pi), "Angles should be in the range [-pi, pi]"
 
             new_state = dict()
-            new_state["t_azimuth_angle"] = np.array([t_az_ang])
-            new_state["t_elevation_angle"] = np.array([t_el_ang])
-            new_state["a_azimuth_angle"] = np.array([a_az_ang])
-            new_state["a_elevation_angle"] = np.array([a_el_ang])
+            new_state["azimuth_angle"] = np.array([az_ang])
+            new_state["elevation_angle"] = np.array([el_ang])
             new_state["aux_state"] = super().compute_auxiliary()
             new_state["ang_vel"] = ang_vel
             new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.orn_height else np.array([self.orn_height])
 
             # Store non-observable states (for debugging/evaluation purposes)
-            self.info["non_observables"] = {
-                "angular_position": ang_pos,
-                "quaternion": quaternion,
-                "linear_position": lin_pos,
-                "linear_velocity": lin_vel,
-            }
+            self.info["angular_position"] = ang_pos
+            self.info["quaternion"] = quaternion
+            self.info["linear_position"] = lin_pos
+            self.info["linear_velocity"] = lin_vel
+            self.info["distance_to_target"] = np.linalg.norm(LOS)
 
         else:
             raise NotImplementedError("Only quaternion representation is supported for now.")
@@ -199,17 +199,15 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # los_reward = np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) + np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"])
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
-        los_reward = np.pi - np.abs(np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"]) - np.pi)
+        # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
+        los_reward = np.abs(self.state["azimuth_angle"]) + np.abs(self.state["elevation_angle"])
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         smooth_reward = np.linalg.norm(self.state["aux_state"] - self.action)  # Smooth control reward
 
         # Min-Max scaling to ensure all rewards are in the range [-2*pi, 0]
-        # Formula used: "https://sourabharsh.medium.com/how-to-apply-min-max-normalization-to-your-data-f976d1633d2b"
-        steepness = 4  # Used as a hyperparameter to control the steepness of the reward curve
-        scaled_los_reward = -(los_reward**steepness)
-        # scaled_smooth_reward = ((smooth_reward - self.smooth_min) / (self.smooth_max - self.smooth_min))*(self.reward_max - self.reward_min) + self.reward_min
-        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-(2**steepness)*np.pi)
+        scaled_los_reward = -(los_reward)
+        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-2*np.pi)
 
         self.info["reward_components"] = {
             "scaled_los_reward": scaled_los_reward,
@@ -217,7 +215,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         }
 
         assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
-        assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
+        # assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
 
         reward = 1.0 * scaled_los_reward + 0.0 * scaled_smooth_reward
         self.reward = reward[0]

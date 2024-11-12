@@ -19,7 +19,7 @@ eval_freq = 30_000
 log_root_dir = "./tensorboard_log/StaticWaypointEnv"
 check_root_dir = "./checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "LOSAngleObs-Adjusted-LimThrust"
+mod = "LOSAngleObs-Adjusted-MAYBEFIXED"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 # env_id = "PyFlyt/QuadX-Waypoints-v2"

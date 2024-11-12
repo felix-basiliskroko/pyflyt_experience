@@ -81,6 +81,8 @@ def evaluate_policy(
     episode_infos = []
     tmp_infos = []
 
+    target_waypoints = []
+
     episode_counts = np.zeros(n_envs, dtype="int")
     # Divides episodes among different sub environments in the vector as evenly as possible
     episode_count_targets = np.array([(n_eval_episodes + i) // n_envs for i in range(n_envs)], dtype="int")
@@ -132,6 +134,7 @@ def evaluate_policy(
                         episode_lengths.append(current_lengths[i])
                         episode_obs.append(tmp_obs)
                         episode_infos.append(tmp_infos)
+                        target_waypoints.append(info["waypoint"])
                         tmp_obs = []
                         tmp_infos = []
                         episode_counts[i] += 1
@@ -148,5 +151,5 @@ def evaluate_policy(
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, "Mean reward below threshold: " f"{mean_reward:.2f} < {reward_threshold:.2f}"
     if return_episode_rewards:
-        return episode_rewards, episode_lengths, episode_obs, episode_infos
+        return episode_rewards, episode_lengths, episode_obs, episode_infos, target_waypoints
     return mean_reward, std_reward
