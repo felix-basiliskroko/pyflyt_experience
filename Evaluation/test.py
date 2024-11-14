@@ -1,7 +1,8 @@
 import gymnasium
 import PyFlyt.gym_envs
 
-env = gymnasium.make("PyFlyt/QuadX-Waypoints-v2", render_mode="human")
+env_id = "SingleWaypointQuadXEnv-v0"
+env = gymnasium.make(env_id, render_mode=None)
 
 term, trunc = False, False
 obs, _ = env.reset()

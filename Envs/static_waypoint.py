@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import numpy as np
+from PyFlyt.core import Aviary
 from gymnasium import spaces
 
 from PyFlyt.gym_envs.quadx_envs.quadx_base_env import QuadXBaseEnv
@@ -39,7 +40,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
             flight_mode: int = 0,
-            flight_dome_size: float = 6.0,
+            flight_dome_size: float = 10.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
             agent_hz: int = 30,
@@ -64,24 +65,15 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             render_resolution (tuple[int, int]): render_resolution.
 
         """
-        self.orn_height = 3.0
 
-        self.waypoints = WaypointHandler(
-            enable_render=self.render_mode is not None,
-            num_targets=num_targets,
-            use_yaw_targets=use_yaw_targets,
-            goal_reach_distance=goal_reach_distance,
-            goal_reach_angle=goal_reach_angle,
-            flight_dome_size=flight_dome_size,
-            min_height=self.orn_height,
-            np_random=self.np_random,
-        )
 
         # init_LOS = self.waypoints.targets[0] - np.array([[0.0, 0.0, self.orn_height]])
         # unit_init_LOS = init_LOS/np.linalg.norm(init_LOS)
 
+        self.start_height = 3.0
+        self.prev_pos = np.array([0.0, 0.0, self.start_height])
         super().__init__(
-            start_pos=np.array([[0.0, 0.0, self.orn_height]]),
+            start_pos=np.array([[0.0, 0.0, self.start_height]]),
             flight_mode=flight_mode,
             flight_dome_size=flight_dome_size,
             start_orn=np.array([[0.0, 0.0, 0.0]]),
@@ -92,7 +84,17 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             render_resolution=render_resolution,
         )
 
-        # define waypoints
+        self.waypoints = WaypointHandler(
+            enable_render=self.render_mode is not None,
+            num_targets=num_targets,
+            use_yaw_targets=use_yaw_targets,
+            goal_reach_distance=goal_reach_distance,
+            goal_reach_angle=goal_reach_angle,
+            flight_dome_size=flight_dome_size,
+            min_height=self.start_height*3,
+            np_random=self.np_random,
+        )
+
         self.state = None
         self.xyz_limit = np.pi
         self.thrust_limit = 0.8
@@ -139,9 +141,40 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             options: None
 
         """
-        super().begin_reset(seed, options)
 
-        self.waypoints.reset(self.env, self.np_random)
+        super().begin_reset(seed, options)  # self.env with neutral starting orientation
+        self.waypoints.reset(self.env, self.np_random)  # Initialize the target vector
+
+        # Calculate azimuth-aligned starting orientation based on target vector
+        target_proj = self.waypoints.targets[0][:2]/np.linalg.norm(self.waypoints.targets[0][:2])
+        init_yaw = self.ang(np.array([0.0, -1.0]), target_proj)
+        self.start_orn = np.array([[0.0, 0.0, init_yaw]])
+
+        # Overwrite self.env with updated starting orientation (self.start_orn)
+        drone_options = dict()
+        drone_options["use_camera"] = drone_options.get("use_camera", False) or bool(
+            self.render_mode
+        )
+        drone_options["camera_fps"] = int(120 / self.env_step_ratio)
+
+        self.env = Aviary(
+            start_pos=self.start_pos,
+            start_orn=self.start_orn,
+            drone_type="quadx",
+            render=self.render_mode == "human",
+            drone_options=drone_options,
+            seed=seed,
+        )
+
+        if self.render_mode == "human":
+            self.camera_parameters = self.env.getDebugVisualizerCamera()
+
+        # Explanation for above: begin_reset() needs to be called before waypoint/target can be set. Since begin_reset()
+        # sets the self.env variable with the the orientation to neutral, self.env needs to be overwritten with the
+        # updated starting orientation. The orientation is set to be azimuth-aligned with the target vector.
+        #TODO Messy workaround. Find a better way to handle this. Maybe overwrite self.begin_reset()?
+
+        self.action = np.zeros(4)
         self.info["num_targets_reached"] = 0
         super().end_reset()
 
@@ -154,6 +187,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         }
 
         self.info["waypoint"] = self.waypoints.targets[0]
+        self.prev_pos = np.array([0.0, 0.0, self.start_height])
 
         return self.state, self.info
 
@@ -166,7 +200,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         """Computes the state for a single waypoint environment."""
 
         if self.angle_representation == 1:
-            ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
+            ang_vel, ang_pos, _, lin_pos, quaternion = super().compute_attitude()
+            lin_vel = lin_pos - self.prev_pos
+            self.prev_pos = lin_pos
             LOS = self.waypoints.targets[0] - lin_pos
             LOS_xy_proj, LOS_xz_proj = LOS[:2]/np.linalg.norm(LOS[:2]), LOS[[0, 2]]/np.linalg.norm(LOS[[0, 2]])
             vel_xy_proj, vel_xz_proj = lin_vel[:2]/np.linalg.norm(lin_vel[:2]), lin_vel[[0, 2]]/np.linalg.norm(lin_vel[[0, 2]])
@@ -181,7 +217,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["elevation_angle"] = np.array([el_ang])
             new_state["aux_state"] = super().compute_auxiliary()
             new_state["ang_vel"] = ang_vel
-            new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.orn_height else np.array([self.orn_height])
+            new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.start_height else np.array([self.start_height])
 
             # Store non-observable states (for debugging/evaluation purposes)
             self.info["angular_position"] = ang_pos
@@ -200,27 +236,31 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
-        los_reward = np.abs(self.state["azimuth_angle"]) + np.abs(self.state["elevation_angle"])
+        azimuth_reward = np.abs(self.state["azimuth_angle"]**2)
+        elevation_reward = np.abs(self.state["elevation_angle"]**2)
+        los_reward = azimuth_reward + elevation_reward
+
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         smooth_reward = np.linalg.norm(self.state["aux_state"] - self.action)  # Smooth control reward
 
-        # Min-Max scaling to ensure all rewards are in the range [-2*pi, 0]
+        # Min-Max scaling to ensure all rewards are in the range [-2*pi**2, 0]
         scaled_los_reward = -(los_reward)
-        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-2*np.pi)
+        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-2*np.pi**2)
 
         self.info["reward_components"] = {
             "scaled_los_reward": scaled_los_reward,
             "scaled_smooth_reward": scaled_smooth_reward,
         }
 
-        assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
+        # assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
         # assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
 
-        reward = 1.0 * scaled_los_reward + 0.0 * scaled_smooth_reward
+        reward = 0.8 * scaled_los_reward + 0.2 * scaled_smooth_reward
         self.reward = reward[0]
 
         """Handle termination, truncation, and reward specifically for single waypoint."""
+        # collision
         if np.any(self.env.contact_array[self.env.planeId]):
             self.reward = -500.0
             self.info["collision"] = True

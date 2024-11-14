@@ -4,11 +4,82 @@ import gymnasium as gym
 from Envs.WaypointEnv import QuadXWaypoint
 from Envs import register
 import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 import numpy as np
+import pandas as pd
 # from stable_baselines3.common.evaluation import evaluate_policy
 from Evaluation.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
 from stable_baselines3.common.monitor import Monitor
+
+
+def plotly_vector_field(linear_positions, linear_velocities, target_vector, size=1, save_path=None):
+    """
+    Plots the trajectory of the drone in 3D space with its corresponding velocity vectors as well as target.
+    :param linear_positions: list of sampled linear positions
+    :param linear_velocities: list of sampled linear velocities
+    :param target_vector: target vector
+    :param size: size of the cones, need adjustment based on the magnitude of the velocities
+    """
+    linear_velocity = np.concatenate((linear_positions, linear_velocities), axis=1)
+
+    x, y, z, u, v, w = linear_velocity.T
+
+    pl_ice = [
+        [0.0, 'rgb(3, 5, 18)'],
+        [0.11, 'rgb(27, 26, 54)'],
+        [0.22, 'rgb(48, 46, 95)'],
+        [0.33, 'rgb(60, 66, 136)'],
+        [0.44, 'rgb(62, 93, 168)'],
+        [0.56, 'rgb(66, 122, 183)'],
+        [0.67, 'rgb(82, 149, 192)'],
+        [0.78, 'rgb(106, 177, 203)'],
+        [0.89, 'rgb(140, 203, 219)'],
+        [1.0, 'rgb(188, 227, 235)']
+    ]
+
+    trace1 = go.Cone(
+        x=x, y=y, z=z,
+        u=u, v=v, w=w,
+        colorscale=pl_ice,
+        sizemode='absolute',
+        sizeref=size,
+        colorbar=dict(thickness=40, ticklen=4),
+        anchor='tip'
+    )
+
+    trace2 = go.Scatter3d(
+        x=[target_vector[0]],
+        y=[target_vector[1]],
+        z=[target_vector[2]],
+        mode='markers',
+        marker=dict(
+            size=10,
+            color='red',
+            opacity=0.8
+        )
+    )
+
+    layout = go.Layout(
+        width=900,
+        height=750,
+        autosize=False,
+        scene=dict(
+            camera=dict(eye=dict(x=1.2, y=1.2, z=0.6)),
+            xaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
+            yaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
+            zaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
+            aspectratio=dict(x=1, y=1, z=0.8)
+        )
+    )
+
+    fig = go.Figure(data=[trace1, trace2], layout=layout)
+    if save_path:
+        fig.write_html(save_path)
+    else:
+        # warnings.warn("The plot can only be displayed when the function is called in a Jupyter notebook.")
+        fig.show()
 
 
 def average_trajectories(trajectories) -> list[list[np.array]]:
@@ -160,6 +231,37 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
 
     return res
 
+
+def visualize_plotly_model(result, model, env, n_eval_episodes, save_path=None):
+    data = []
+    for episode_index, (positions, waypoint) in enumerate(zip(result['linear_position'], result['waypoints'])):
+        for pos in positions:
+            data.append({
+                'Episode': episode_index,
+                'X': pos[0],
+                'Y': pos[1],
+                'Z': pos[2],
+                'Type': 'Position'
+            })
+        # Adding waypoint for the episode
+        data.append({
+            'Episode': episode_index,
+            'X': waypoint[0],
+            'Y': waypoint[1],
+            'Z': waypoint[2],
+            'Type': 'Waypoint'
+        })
+
+    df = pd.DataFrame(data)
+
+    # Plotting using Plotly Express
+    fig = px.scatter_3d(df, x='X', y='Y', z='Z', color='Episode', symbol='Type', title='Trajectory and Waypoints per Episode')
+    fig.update_traces(marker=dict(size=5))
+
+    if save_path:
+        fig.write_html(save_path)
+    else:
+        fig.show()
 
 def visualize_model(model, env, n_eval_episodes, render, verbose=True):
     """
