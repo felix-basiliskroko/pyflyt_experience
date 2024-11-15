@@ -91,7 +91,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance=goal_reach_distance,
             goal_reach_angle=goal_reach_angle,
             flight_dome_size=flight_dome_size,
-            min_height=self.start_height*3,
+            min_height=self.start_height,
             np_random=self.np_random,
         )
 
