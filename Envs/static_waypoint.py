@@ -39,7 +39,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             use_yaw_targets: bool = False,
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
-            flight_mode: int = 0,
+            flight_mode: int = 1,
             flight_dome_size: float = 10.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
@@ -91,7 +91,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance=goal_reach_distance,
             goal_reach_angle=goal_reach_angle,
             flight_dome_size=flight_dome_size,
-            min_height=self.start_height,
+            min_height=0.85*flight_dome_size,
             np_random=self.np_random,
         )
 
@@ -112,23 +112,37 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
             })
 
-        high = np.array(
-            [
-                self.xyz_limit,
-                self.xyz_limit,
-                self.xyz_limit,
-                self.thrust_limit,
-            ]
-        )
-        low = np.array(
-            [
-                -self.xyz_limit,
-                -self.xyz_limit,
-                -self.xyz_limit,
-                0.0,
-            ]
-        )
-        self.action_space = spaces.Box(low=low, high=high, dtype=np.float64)
+        self.flight_mode = flight_mode
+        nudge = 0.1
+        if self.flight_mode == 1:
+            high = np.array(
+                [
+                    nudge*self.xyz_limit,
+                    nudge*self.xyz_limit,
+                    nudge*self.xyz_limit,
+                    nudge*self.thrust_limit,
+                ]
+            )
+            low = np.array(
+                [
+                    -nudge*self.xyz_limit,
+                    -nudge*self.xyz_limit,
+                    -nudge*self.xyz_limit,
+                    -nudge*self.thrust_limit,
+                ]
+            )
+            self.action_space = spaces.Box(low=low, high=high, dtype=np.float64)
+
+    def step(self, action: np.ndarray):
+        if self.flight_mode == 1:  # Control via small nudges in pitch, yaw, roll, thrust
+            pitch, yaw, roll, thrust = super().compute_auxiliary()
+            new_pitch = np.clip(pitch + action[0], -self.xyz_limit, self.xyz_limit)
+            new_yaw = np.clip(yaw + action[1], -self.xyz_limit, self.xyz_limit)
+            new_roll = np.clip(roll + action[2], -self.xyz_limit, self.xyz_limit)
+            new_thrust = np.clip(thrust + action[3], 0, self.thrust_limit)
+
+            action = np.array([new_pitch, new_yaw, new_roll, new_thrust])
+        return super().step(action)
 
     def reset(
             self, *, seed: None | int = None, options: None | dict[str, Any] = dict()
@@ -256,7 +270,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
         # assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
 
-        reward = 0.8 * scaled_los_reward + 0.2 * scaled_smooth_reward
+        reward = 1.0 * scaled_los_reward + 0.0 * scaled_smooth_reward
         self.reward = reward[0]
 
         """Handle termination, truncation, and reward specifically for single waypoint."""

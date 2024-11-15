@@ -235,33 +235,42 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
 def visualize_plotly_model(result, model, env, n_eval_episodes, save_path=None):
     data = []
     for episode_index, (positions, waypoint) in enumerate(zip(result['linear_position'], result['waypoints'])):
-        for pos in positions:
+        for step_index, pos in enumerate(positions):
             data.append({
                 'Episode': episode_index,
+                'Step': step_index,  # Adding step number
                 'X': pos[0],
                 'Y': pos[1],
                 'Z': pos[2],
-                'Type': 'Position'
+                'Type': 'Position',
+                'Text': f'Step: {step_index}'  # Use 'Text' to store hover info
             })
         # Adding waypoint for the episode
         data.append({
             'Episode': episode_index,
+            'Step': len(positions),  # Waypoint is the last step
             'X': waypoint[0],
             'Y': waypoint[1],
             'Z': waypoint[2],
-            'Type': 'Waypoint'
+            'Type': 'Waypoint',
+            'Text': f'Waypoint, Step: {len(positions)}'
         })
 
     df = pd.DataFrame(data)
 
     # Plotting using Plotly Express
-    fig = px.scatter_3d(df, x='X', y='Y', z='Z', color='Episode', symbol='Type', title='Trajectory and Waypoints per Episode')
+    fig = px.scatter_3d(df, x='X', y='Y', z='Z', color='Episode', symbol='Type',
+                        title='Trajectory and Waypoints per Episode',
+                        hover_data=['Step', 'Text'])  # Adding hover data
+
     fig.update_traces(marker=dict(size=5))
+    fig.update_traces(hovertemplate="Episode: %{customdata[0]}<br>Step: %{customdata[1]}<br>X: %{x}<br>Y: %{y}<br>Z: %{z}<br>%{customdata[2]}<extra></extra>")
 
     if save_path:
         fig.write_html(save_path)
     else:
         fig.show()
+
 
 def visualize_model(model, env, n_eval_episodes, render, verbose=True):
     """
