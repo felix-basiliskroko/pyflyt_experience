@@ -3,15 +3,16 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 import torch as t
+from Envs import register
 
 
 def entr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_steps: int):
     device = "cuda" if t.cuda.is_available() else "cpu"
     vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
     policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
-    log_dir = f'{log_dir}/{env_id}/entropy'
+    log_dir = os.path.join(log_dir, env_id, "entropy")
     if not os.path.exists(log_dir):
-        os.mkdir(log_dir)
+        os.makedirs(log_dir, exist_ok=True)
     log_dir = f"{log_dir}/v_range={value_range}_buckets={buckets}_steps={num_steps}"
     ent_coeff_vals = np.linspace(value_range[0], value_range[1], buckets)
 
