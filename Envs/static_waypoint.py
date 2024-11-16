@@ -39,7 +39,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             use_yaw_targets: bool = False,
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
-            flight_mode: int = 1,
+            flight_mode: int = 0,  # -1: motor-thrust control; 0: PYRT-Control; 1: nudge control;
             flight_dome_size: float = 10.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",

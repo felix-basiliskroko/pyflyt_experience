@@ -16,10 +16,10 @@ from stable_baselines3.common.callbacks import EvalCallback
 
 # Logdir
 eval_freq = 30_000
-log_root_dir = "./tensorboard_log/StaticWaypointEnv"
-check_root_dir = "./checkpoints/StaticWaypointEnv"
+log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
+check_root_dir = "../checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "NudgeControl"
+mod = "NudgeControl-EntropyExperiment"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 # env_id = "PyFlyt/QuadX-Waypoints-v2"
@@ -41,7 +41,6 @@ device = "cuda" if t.cuda.is_available() else "cpu"
 
 
 model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
-            ent_coef=0.0055,
             vf_coef=0.6,
             gamma=0.8,
             learning_rate=0.001,
