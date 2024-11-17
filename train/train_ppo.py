@@ -22,18 +22,12 @@ run = "SingleWaypointNavigation"
 mod = "AfterTune"
 dir = f'{log_root_dir}/{run}/{mod}'
 
-# env_id = "PyFlyt/QuadX-Waypoints-v2"
 env_id = "SingleWaypointQuadXEnv-v0"
-# env_id = "Quadx-Waypoint-v0"
-
 
 vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
-# vec_env = VecVideoRecorder(vec_env, video_folder=f"./{check_root_dir}/{run}/{mod}/videos/train_videos", record_video_trigger=lambda x: x % eval_freq == -1, video_length=100, name_prefix="train")
 policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
 
 eval_env = make_vec_env(env_id=env_id, seed=42)
-# eval_env = gym.make(env_id, render_mode="human")
-# eval_env = VecVideoRecorder(eval_env, video_folder=f"./{check_root_dir}/{run}/{mod}/videos/eval_videos", record_video_trigger=lambda x: x % eval_freq == 0, video_length=100, name_prefix="eval")
 eval_callback = EvalCallback(eval_env, best_model_save_path=f"./{check_root_dir}/{run}/{mod}",
                  log_path=f"./{check_root_dir}/{run}/{mod}", eval_freq=eval_freq,
                  deterministic=True, render=True, n_eval_episodes=5)
