@@ -100,8 +100,12 @@ def evaluate_policy(
             deterministic=deterministic,
         )
         new_observations, rewards, dones, infos = env.step(actions)
+
+        # Append actions to infos
+        tmp = dict(infos[0].items())
+        tmp["action"] = actions[0]
+        tmp_infos.append(tmp)
         tmp_obs.append(dict(new_observations.items()))
-        tmp_infos.append(dict(infos[0].items()))
 
         current_rewards += rewards
         current_lengths += 1

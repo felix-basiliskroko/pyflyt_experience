@@ -191,7 +191,7 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
     res = {}
     var_name = ["azimuth_angle", "elevation_angle", "aux_state",
                 "ang_vel", "altitude", "angular_position", "quaternion",
-                "linear_position", "linear_velocity", "distance_to_target"]
+                "linear_position", "linear_velocity", "distance_to_target", "action"]
 
     for var in var_name:
         res[var] = []
@@ -218,6 +218,31 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
     # Calculate smoothness of the control inputs and the thrust-level
     res["smoothness"] = []
     res["thrust"] = []
+    res["pitch"], res["yaw"], res["roll"] = [], [], []
+    res["pitch_ang"], res["yaw_ang"], res["roll_ang"] = [], [], []
+    res["translation_accuracy"] = []
+
+    # Calculate the pitch, yaw, and roll angles
+    for ep in res["angular_position"]:
+        res["pitch"].append([i[0] for i in ep])
+        res["yaw"].append([i[1] for i in ep])
+        res["roll"].append([i[2] for i in ep])
+
+    # Calculate the pitch, yaw, and roll angular velocities
+    for ep in res["ang_vel"]:
+        res["pitch_ang"].append([i[0] for i in ep])
+        res["yaw_ang"].append([i[1] for i in ep])
+        res["roll_ang"].append([i[2] for i in ep])
+
+    # Calculate translation accuracy (how accurately p,y,r actions are translated to angular positions of the UAV)
+    for angular_list, action_list in zip(res["angular_position"], res["action"]):
+        temp_list = []
+        for angular, action in zip(angular_list, action_list):
+            # Compute the difference of the first three elements
+            diff = np.abs(action[:3] - angular[:3])
+            temp_list.append(diff)
+
+        res["translation_accuracy"].append(temp_list)
 
     for ep in res["aux_state"]:
         res["smoothness"].append([np.linalg.norm(i) for i in ep])
