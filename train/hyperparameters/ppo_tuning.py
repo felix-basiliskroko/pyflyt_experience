@@ -89,7 +89,7 @@ def lr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_step
     lr_vals = np.linspace(value_range[0], value_range[1], buckets)
 
     for lr in lr_vals:
-        run_dir = f"{log_dir}/lr={round(lr, 3)}"
+        run_dir = f"{log_dir}/lr={lr}"
         model = PPO("MultiInputPolicy",
                     vec_env,
                     verbose=0,
@@ -101,4 +101,4 @@ def lr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_step
                     learning_rate=lr,
                     device=device)
         model.learn(total_timesteps=num_steps)
-    print("Finished tuning gae_lambda.")
+    print("Finished tuning the learning rate.")

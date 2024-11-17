@@ -19,7 +19,7 @@ eval_freq = 30_000
 log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
 check_root_dir = "../checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "NudgeControl-EntropyExperiment"
+mod = "AfterTune"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 # env_id = "PyFlyt/QuadX-Waypoints-v2"
@@ -41,8 +41,9 @@ device = "cuda" if t.cuda.is_available() else "cpu"
 
 
 model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
-            vf_coef=0.6,
-            gamma=0.8,
-            learning_rate=0.001,
+            ent_coef=0.007,
+            gamma=0.863,
+            learning_rate=8e-4,
+            gae_lambda=0.9625,
             device=device)  # For non-dict observation space
 model.learn(total_timesteps=2_000_000, callback=eval_callback)
