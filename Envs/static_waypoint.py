@@ -219,9 +219,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             lin_vel = lin_pos - self.prev_pos
             self.prev_pos = lin_pos
             LOS = self.waypoints.targets[0] - lin_pos
-            LOS_xy_proj, LOS_xz_proj = LOS[:2]/np.linalg.norm(LOS[:2]), LOS[[0, 2]]/np.linalg.norm(LOS[[0, 2]])
-            vel_xy_proj, vel_xz_proj = lin_vel[:2]/np.linalg.norm(lin_vel[:2]), lin_vel[[0, 2]]/np.linalg.norm(lin_vel[[0, 2]])
-
+            LOS_xy_proj, LOS_xz_proj = LOS[:2]/(np.linalg.norm(LOS[:2]) + 1e-10), LOS[[0, 2]]/(np.linalg.norm(LOS[[0, 2]]) + 1e-10)
+            vel_xy_proj, vel_xz_proj = lin_vel[:2]/(np.linalg.norm(lin_vel[:2]) + 1e-10), lin_vel[[0, 2]]/(np.linalg.norm(lin_vel[[0, 2]]) + 1e-10)
+            
             az_ang = self.ang(LOS_xy_proj, vel_xy_proj)
             el_ang = self.ang(LOS_xz_proj, vel_xz_proj)
 
