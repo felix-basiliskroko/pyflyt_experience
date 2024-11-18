@@ -39,8 +39,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             use_yaw_targets: bool = False,
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
-            flight_mode: int = 0,  # -1: motor-thrust control; 0: PYRT-Control; 1: nudge control;
-            flight_dome_size: float = 10.0,
+            flight_mode: int = 1,  # -1: motor-thrust control; 0: PYRT-Control; 1: nudge control;
+            flight_dome_size: float = 30.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
             agent_hz: int = 30,
@@ -91,7 +91,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance=goal_reach_distance,
             goal_reach_angle=goal_reach_angle,
             flight_dome_size=flight_dome_size,
-            min_height=0.85*flight_dome_size,
+            min_height=0.6*flight_dome_size,
             np_random=self.np_random,
         )
 
@@ -100,21 +100,22 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.thrust_limit = 0.8
 
         # Reward scaling to be in the range [-2*pi, 0]
-        self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit, self.thrust_limit]))
+        # self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit, self.thrust_limit]))
+        self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))
 
         # Define observation space
         self.observation_space = spaces.Dict(
             {
                 "azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
                 "elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
-                "aux_state": spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float64),
+                "ang_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
                 "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
                 "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
             })
 
         self.flight_mode = flight_mode
-        nudge = 0.1
         if self.flight_mode == 1:
+            nudge = 0.1
             high = np.array(
                 [
                     nudge*self.xyz_limit,
@@ -195,7 +196,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.state = {
             "azimuth_angle": np.zeros(1),
             "elevation_angle": np.zeros(1),
-            "aux_state": np.zeros(4),
+            "ang_pos": np.zeros(3),
             "ang_vel": np.zeros(3),
             "altitude": np.zeros(1),
         }
@@ -229,7 +230,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state = dict()
             new_state["azimuth_angle"] = np.array([az_ang])
             new_state["elevation_angle"] = np.array([el_ang])
-            new_state["aux_state"] = super().compute_auxiliary()
+            new_state["ang_pos"] = ang_pos
             new_state["ang_vel"] = ang_vel
             new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.start_height else np.array([self.start_height])
 
@@ -256,7 +257,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
-        smooth_reward = np.linalg.norm(self.state["aux_state"] - self.action)  # Smooth control reward
+        smooth_reward = np.linalg.norm(self.state["ang_pos"] - self.action[:3])  # Smooth control reward
 
         # Min-Max scaling to ensure all rewards are in the range [-2*pi**2, 0]
         scaled_los_reward = -(los_reward)
@@ -270,7 +271,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
         # assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
 
-        reward = 1.0 * scaled_los_reward + 0.0 * scaled_smooth_reward
+        reward = 0.7 * scaled_los_reward + 0.3 * scaled_smooth_reward
         self.reward = reward[0]
 
         """Handle termination, truncation, and reward specifically for single waypoint."""
@@ -281,9 +282,15 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self.termination |= True
 
         # exceed flight dome
-        if np.linalg.norm(self.env.state(0)[-1]) > self.flight_dome_size:
+        if np.linalg.norm(self.info["linear_position"]) > self.flight_dome_size:
             # self.reward = -500.0
             self.info["out_of_bounds"] = True
+            self.termination |= True
+
+        # unstable flight
+        if np.any(np.abs(self.state["ang_pos"]) > 0.5*np.pi):
+            self.reward = -500.0
+            self.info["unstable"] = True
             self.termination |= True
 
         # target reached
