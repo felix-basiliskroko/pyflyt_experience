@@ -19,11 +19,10 @@ eval_freq = 30_000
 log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
 check_root_dir = "../checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "AfterTune"
+mod = "AngPosObs"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 env_id = "SingleWaypointQuadXEnv-v0"
-
 vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
 policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
 
