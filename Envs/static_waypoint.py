@@ -46,6 +46,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             agent_hz: int = 30,
             render_mode: None | Literal["human", "rgb_array"] = None,
             render_resolution: tuple[int, int] = (480, 480),
+            min_height: float = 0.2,
     ):
         """__init__.
 
@@ -66,11 +67,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         """
 
-
-        # init_LOS = self.waypoints.targets[0] - np.array([[0.0, 0.0, self.orn_height]])
-        # unit_init_LOS = init_LOS/np.linalg.norm(init_LOS)
-
-        self.start_height = 3.0
+        self.start_height = 0.5*flight_dome_size  # start in the middle of the flight dome
         self.prev_pos = np.array([0.0, 0.0, self.start_height])
         super().__init__(
             start_pos=np.array([[0.0, 0.0, self.start_height]]),
@@ -91,7 +88,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance=goal_reach_distance,
             goal_reach_angle=goal_reach_angle,
             flight_dome_size=flight_dome_size,
-            min_height=0.6*flight_dome_size,
+            min_height=min_height*flight_dome_size,
             np_random=self.np_random,
         )
 
@@ -99,8 +96,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.xyz_limit = np.pi
         self.thrust_limit = 0.8
 
-        # Reward scaling to be in the range [-2*pi, 0]
-        # self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit, self.thrust_limit]))
+        # For Reward scaling
         self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))
 
         # Define observation space
@@ -208,6 +204,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         return self.state, self.info
 
     def ang(self, v1, v2):
+        #TODO move this to utils (static method)
         angle = np.arctan2(v2[1], v2[0]) - np.arctan2(v1[1], v1[0])
         angle = (angle + np.pi) % (2 * np.pi) - np.pi
         return angle
@@ -217,9 +214,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         if self.angle_representation == 1:
             ang_vel, ang_pos, _, lin_pos, quaternion = super().compute_attitude()
-            # print(f'Lienar velocity: {lin_vel}')
+
+            # Compute linear velocity based on previous position
+            # -> Explanation: The linear velocity computed by the simulation is somewhat flawed. See Obsidian
             lin_vel = lin_pos - self.prev_pos
             self.prev_pos = lin_pos
+
             LOS = self.waypoints.targets[0] - lin_pos
             LOS_xy_proj, LOS_xz_proj = LOS[:2]/(np.linalg.norm(LOS[:2]) + 1e-10), LOS[[0, 2]]/(np.linalg.norm(LOS[[0, 2]]) + 1e-10)
             vel_xy_proj, vel_xz_proj = lin_vel[:2]/(np.linalg.norm(lin_vel[:2]) + 1e-10), lin_vel[[0, 2]]/(np.linalg.norm(lin_vel[[0, 2]]) + 1e-10)
