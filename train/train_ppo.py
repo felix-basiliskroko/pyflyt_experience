@@ -16,10 +16,10 @@ from stable_baselines3.common.callbacks import EvalCallback
 
 # Logdir
 eval_freq = 30_000
-log_root_dir = "./logs/tensorboard_log/StaticWaypointEnv"
-check_root_dir = "./checkpoints/StaticWaypointEnv"
+log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
+check_root_dir = "../checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "SmallerReward"
+mod = "NormObs_ScaledReward"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 env_id = "SingleWaypointQuadXEnv-v0"
