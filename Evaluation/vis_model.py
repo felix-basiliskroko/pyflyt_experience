@@ -106,7 +106,7 @@ def average_trajectories(trajectories) -> list[list[np.array]]:
 
 def plot_eval(results, average=False) -> None:
     """
-    Plot the evaluation results.
+    Plot the evaluation results using Plotly.
 
     :param results: (dict) The evaluation results
     """
@@ -118,59 +118,97 @@ def plot_eval(results, average=False) -> None:
         len_b4_avg = len(results[var_name])
         results[var_name] = average_trajectories(results[var_name])
 
-    plt.figure(figsize=(8, 6))
+    fig = go.Figure()
 
     for index, sublist in enumerate(results[var_name]):
-        plt.plot(sublist, color="blue")
+        fig.add_trace(go.Scatter(y=sublist, line=dict(color="blue"), name=var_name))
 
-    plt.legend()
+    # Set the title based on whether averaging is done
+    title_text = f'{var_name} over time (averaged over {len_b4_avg} episodes)' if average else f'{var_name} over time'
 
-    # Add title and labels
-    if average:
-        plt.title(f'{var_name} over time (averaged over {len_b4_avg} episodes)')
-    else:
-        plt.title(f'{var_name} over time')
-    plt.xlabel('timestep')
-    plt.ylabel(f'{var_name}-value')
+    # Set layout options
+    fig.update_layout(
+        title=title_text,
+        xaxis_title='Timestep',
+        yaxis_title=f'{var_name}-value',
+        legend_title=var_name,
+        # Adjust figure size similar to matplotlib
+        autosize=False,
+        width=800,
+        height=600
+    )
 
-    # Show the plot
-    plt.show()
+    fig.show()
 
 
 def plot_multiple_eval(results, average=False) -> None:
     """
-    Plot the evaluation results for multiple variables.
+    Plot the evaluation results for multiple variables using Plotly.
 
     :param results: (dict) The evaluation results where keys are variable names
     """
+    # Generates a color map using Plotly's default sequence
+    colors = px.colors.qualitative.Plotly
 
-    colors = plt.cm.viridis(np.linspace(0, 1, len(results)))  # Generates a color map
-
-    plt.figure(figsize=(10, 8))
-    legend_labels = []
+    fig = go.Figure()
 
     for (var_name, sublist), color in zip(results.items(), colors):
         if average:
             len_b4_avg = len(sublist)
-            sublist = average_trajectories(sublist)  # Make sure this returns a flat list of numbers
+            sublist = average_trajectories(sublist)  # Ensure this returns a flat list of numbers
 
         for data in sublist:
             if isinstance(data, np.ndarray):
                 data = data.ravel()  # Converts array to 1D, if needed
-            plt.plot(data, color=color)
+            fig.add_trace(go.Scatter(y=data, line=dict(color=color), name=var_name))
 
-        label = f'{var_name} (avg over {len_b4_avg} episodes)' if average else var_name
-        legend_labels.append((label, color))
+        # Update the label if averaging was performed
+        if average:
+            label = f'{var_name} (avg over {len_b4_avg} episodes)'
+            # Update the last trace added with the new name
+            fig.data[-1].update(name=label)
 
-    # Create a custom legend
-    for label, color in legend_labels:
-        plt.plot([], color=color, label=label)
+    # Set layout options
+    fig.update_layout(
+        title='Evaluation Results Over Time',
+        xaxis_title='Timestep',
+        yaxis_title='Value',
+        legend_title='Variable',
+        # Make legend horizontal
+        legend=dict(orientation="h"),
+        # Adjust figure size similar to matplotlib
+        autosize=False,
+        width=1000,
+        height=800
+    )
 
-    plt.legend(title="Variable")
-    plt.title('Evaluation Results Over Time')
-    plt.xlabel('Timestep')
-    plt.ylabel('Value')
-    plt.show()
+    fig.show()
+
+
+def plot_termination_flags(flag_data):
+    labels = list(flag_data.keys())
+    values = list(flag_data.values())
+
+    total = sum(values)
+    relative_frequencies = [(value / total) * 100 for value in values]
+
+    # Create a plot
+    fig = go.Figure(data=[go.Bar(
+        x=labels,
+        y=relative_frequencies,
+        text=values,
+        hoverinfo='text+y',
+        textposition='auto',
+    )])
+
+    fig.update_layout(
+        title='Termination Flags Distribution',
+        xaxis_title='Termination Flags',
+        yaxis_title='Relative Frequency (%)',
+        hovermode='closest'
+    )
+
+    fig.show()
 
 
 def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, include_waypoints=True) -> dict[str, list[list[np.array]]]:
@@ -189,9 +227,10 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
                                                                            render=render, deterministic=deterministic,
                                                                            return_episode_rewards=True)
     res = {}
-    var_name = ["azimuth_angle", "elevation_angle", "aux_state",
-                "ang_vel", "altitude", "angular_position", "quaternion",
-                "linear_position", "linear_velocity", "distance_to_target", "action"]
+    var_name = ["azimuth_angle", "elevation_angle",
+                "ang_vel", "altitude", "ang_pos", "quaternion", "aux_state",
+                "linear_position", "linear_velocity", "distance_to_target", "action",
+                "unstable", "collision", "out_of_bounds", "env_complete"]
 
     for var in var_name:
         res[var] = []
@@ -201,14 +240,14 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
                     res[var].append([obs[var].squeeze() for obs in ep])
                 except AttributeError:  # If the variable is not an array
                     res[var].append([obs[var] for obs in ep])
-                res[var][-1].pop(-1)
+                # res[var][-1].pop(-1)
         elif var in all_infos[0][0].keys():
             for ep in all_infos:
                 try:
                     res[var].append([info[var].squeeze() for info in ep])
                 except AttributeError:
                     res[var].append([info[var] for info in ep])
-                res[var][-1].pop(-1)
+                # res[var][-1].pop(-1)
         else:
             raise ValueError(f'Variable "{var}" not found in observations or infos.')
 
@@ -217,42 +256,68 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
 
     # Calculate smoothness of the control inputs and the thrust-level
     res["smoothness"] = []
-    res["thrust"] = []
     res["pitch"], res["yaw"], res["roll"] = [], [], []
     res["pitch_ang"], res["yaw_ang"], res["roll_ang"] = [], [], []
     res["translation_accuracy"] = []
 
     # Calculate the pitch, yaw, and roll angles
-    for ep in res["angular_position"]:
-        res["pitch"].append([i[0] for i in ep])
-        res["yaw"].append([i[1] for i in ep])
-        res["roll"].append([i[2] for i in ep])
+    for ep in res["ang_pos"]:
+        res["pitch"].append([i[0] for i in ep[:-1]])
+        res["yaw"].append([i[1] for i in ep[:-1]])
+        res["roll"].append([i[2] for i in ep[:-1]])
 
     # Calculate the pitch, yaw, and roll angular velocities
-    for ep in res["ang_vel"]:
-        res["pitch_ang"].append([i[0] for i in ep])
-        res["yaw_ang"].append([i[1] for i in ep])
-        res["roll_ang"].append([i[2] for i in ep])
+    for ep in res["ang_vel"]:  # ignore the last element of each episode
+        res["pitch_ang"].append([i[0] for i in ep[:-1]])
+        res["yaw_ang"].append([i[1] for i in ep[:-1]])
+        res["roll_ang"].append([i[2] for i in ep[:-1]])
 
     # Calculate translation accuracy (how accurately p,y,r actions are translated to angular positions of the UAV)
-    for angular_list, action_list in zip(res["angular_position"], res["action"]):
+    for angular_list, action_list in zip(res["ang_pos"], res["action"]):
         temp_list = []
         for angular, action in zip(angular_list, action_list):
-            # Compute the difference of the first three elements
             diff = np.abs(action[:3] - angular[:3])
             temp_list.append(diff)
 
         res["translation_accuracy"].append(temp_list)
 
+    for ep in res["ang_pos"]:
+        res["smoothness"].append([np.linalg.norm(i) for i in ep[:-1]])
+
+    res["num_term_flags"] = {
+        "num_unstable": 0,
+        "num_collision": 0,
+        "num_out_of_bounds": 0,
+        "num_env_complete": 0,
+        "out_of_time": 0
+    }
+
+    for ep in res["azimuth_angle"]:
+        ep.pop(-1)
+
+    for ep in res["elevation_angle"]:
+        ep.pop(-1)
+
+    res["thrust"] = []
     for ep in res["aux_state"]:
-        res["smoothness"].append([np.linalg.norm(i) for i in ep])
-        res["thrust"].append([i[3] for i in ep])
+        res["thrust"].append([i[3] for i in ep[:-1]])
 
-    for ep in res["smoothness"]:  # Remove the last element of each episode to avoid the sudden drop in the plot
-        ep.pop(-1)
+    for ep in res["unstable"]:
+        res["num_term_flags"]["num_unstable"] += 1 if ep[-1] else 0
 
-    for ep in res["thrust"]:  # Remove the last element of each episode to avoid the sudden drop in the plot
-        ep.pop(-1)
+    for ep in res["collision"]:
+        res["num_term_flags"]["num_collision"] += 1 if ep[-1] else 0
+
+    for ep in res["out_of_bounds"]:
+        res["num_term_flags"]["num_out_of_bounds"] += 1 if ep[-1] else 0
+
+    for ep in res["env_complete"]:
+        res["num_term_flags"]["num_env_complete"] += 1 if ep[-1] else 0
+
+    res["num_term_flags"]["num_out_of_time"] = n_eval_episodes - (res["num_term_flags"]["num_unstable"]
+                                                                  + res["num_term_flags"]["num_collision"]
+                                                                  + res["num_term_flags"]["num_out_of_bounds"]
+                                                                  + res["num_term_flags"]["num_env_complete"])
 
     return res
 
@@ -308,7 +373,7 @@ def visualize_model(model, env, n_eval_episodes, render, verbose=True):
     :param var_name: Name of the variable to visualize
     """
 
-    episode_rewards, episode_lengths, all_obs, all_infos = evaluate_policy(model, env, n_eval_episodes=n_eval_episodes, render=render, deterministic=True, return_episode_rewards=True)
+    episode_rewards, episode_lengths, all_obs, all_infos, target_waypoints = evaluate_policy(model, env, n_eval_episodes=n_eval_episodes, render=render, deterministic=True, return_episode_rewards=True)
 
     if verbose:
         return episode_rewards, episode_lengths, all_obs, all_infos

@@ -39,7 +39,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             use_yaw_targets: bool = False,
             goal_reach_distance: float = 0.2,
             goal_reach_angle: float = 0.1,
-            flight_mode: int = 1,  # -1: motor-thrust control; 0: PYRT-Control; 1: nudge control;
+            flight_mode: int = 0,  # -1: motor-thrust control; 0: PYRT-Control; 1: nudge control;
             flight_dome_size: float = 30.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
@@ -202,6 +202,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         }
 
         self.info["waypoint"] = self.waypoints.targets[0]
+        self.info["unstable"] = False
         self.prev_pos = np.array([0.0, 0.0, self.start_height])
 
         return self.state, self.info
@@ -216,26 +217,28 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         if self.angle_representation == 1:
             ang_vel, ang_pos, _, lin_pos, quaternion = super().compute_attitude()
+            # print(f'Lienar velocity: {lin_vel}')
             lin_vel = lin_pos - self.prev_pos
             self.prev_pos = lin_pos
             LOS = self.waypoints.targets[0] - lin_pos
             LOS_xy_proj, LOS_xz_proj = LOS[:2]/(np.linalg.norm(LOS[:2]) + 1e-10), LOS[[0, 2]]/(np.linalg.norm(LOS[[0, 2]]) + 1e-10)
             vel_xy_proj, vel_xz_proj = lin_vel[:2]/(np.linalg.norm(lin_vel[:2]) + 1e-10), lin_vel[[0, 2]]/(np.linalg.norm(lin_vel[[0, 2]]) + 1e-10)
-            
+
             az_ang = self.ang(LOS_xy_proj, vel_xy_proj)
             el_ang = self.ang(LOS_xz_proj, vel_xz_proj)
 
             assert np.all(np.abs([az_ang, el_ang]) <= np.pi), "Angles should be in the range [-pi, pi]"
 
             new_state = dict()
-            new_state["azimuth_angle"] = np.array([az_ang])
-            new_state["elevation_angle"] = np.array([el_ang])
-            new_state["ang_pos"] = ang_pos
-            new_state["ang_vel"] = ang_vel
+            # Normalize obs to be in the range [-1, 1] (from [-pi, pi])
+            new_state["azimuth_angle"] = np.array([az_ang/np.pi])
+            new_state["elevation_angle"] = np.array([el_ang/np.pi])
+            new_state["ang_pos"] = np.array([ang_pos/np.pi])
+            new_state["ang_vel"] = np.array([ang_vel/np.pi])
             new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.start_height else np.array([self.start_height])
 
             # Store non-observable states (for debugging/evaluation purposes)
-            self.info["angular_position"] = ang_pos
+            self.info["aux_state"] = super().compute_auxiliary()
             self.info["quaternion"] = quaternion
             self.info["linear_position"] = lin_pos
             self.info["linear_velocity"] = lin_vel
@@ -251,51 +254,54 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
-        azimuth_reward = np.abs(self.state["azimuth_angle"]**2)
-        elevation_reward = np.abs(self.state["elevation_angle"]**2)
+        steep_grad = 1
+        azimuth_reward = np.abs(self.state["azimuth_angle"])**steep_grad
+        elevation_reward = np.abs(self.state["elevation_angle"])**steep_grad
         los_reward = azimuth_reward + elevation_reward
 
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
-
         smooth_reward = np.linalg.norm(self.state["ang_pos"] - self.action[:3])  # Smooth control reward
 
-        # Min-Max scaling to ensure all rewards are in the range [-2*pi**2, 0]
+        # Stability reward
+        #TODO implement stability reward
+
+        # Min-Max scaling to ensure all rewards are in the range [-2, 0]
         scaled_los_reward = -(los_reward)
-        scaled_smooth_reward = (smooth_reward/self.smooth_max)*(-2*np.pi**2)
+        scaled_smooth_reward = -2 * (smooth_reward / self.smooth_max)
 
         self.info["reward_components"] = {
             "scaled_los_reward": scaled_los_reward,
             "scaled_smooth_reward": scaled_smooth_reward,
         }
 
-        # assert -2*np.pi <= scaled_los_reward <= 0, f"LOS reward should be in the range [-2*pi, 0] but got {scaled_los_reward}"
-        # assert -2*np.pi <= scaled_smooth_reward <= 0, f"Smooth reward should be in the range [-2*pi, 0] but got {scaled_smooth_reward}"
-
-        reward = 0.7 * scaled_los_reward + 0.3 * scaled_smooth_reward
+        reward = 1.0 * scaled_los_reward + 0.0 * scaled_smooth_reward
         self.reward = reward[0]
 
         """Handle termination, truncation, and reward specifically for single waypoint."""
         # collision
         if np.any(self.env.contact_array[self.env.planeId]):
-            self.reward = -500.0
+            self.reward = -20.0
             self.info["collision"] = True
             self.termination |= True
+            # print("Done: Collision")
 
         # exceed flight dome
-        if np.linalg.norm(self.info["linear_position"]) > self.flight_dome_size:
+        if np.linalg.norm(self.env.state(0)[-1]) > self.flight_dome_size:
             # self.reward = -500.0
             self.info["out_of_bounds"] = True
             self.termination |= True
+            # print("Done: Out of bounds")
 
         # unstable flight
-        if np.any(np.abs(self.state["ang_pos"]) > 0.5*np.pi):
-            self.reward = -500.0
+        if np.any(np.abs(self.state["ang_pos"]) > 0.6*np.pi):
+            self.reward = -20.0
             self.info["unstable"] = True
             self.termination |= True
+            # print(f"Done: Unstable ({self.state['ang_pos']})")
 
         # target reached
         if self.waypoints.target_reached:
-            self.reward = 500.0
+            self.reward = 20.0
 
             # advance the targets
             self.waypoints.advance_targets()
@@ -304,6 +310,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self.truncation |= self.waypoints.all_targets_reached
             self.info["env_complete"] = self.waypoints.all_targets_reached
             self.info["num_targets_reached"] = self.waypoints.num_targets_reached
+            # print("Done: Target reached")
 
     def get_info(self):
         return self.info
