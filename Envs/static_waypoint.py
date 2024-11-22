@@ -46,7 +46,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             agent_hz: int = 30,
             render_mode: None | Literal["human", "rgb_array"] = None,
             render_resolution: tuple[int, int] = (480, 480),
-            min_height: float = 0.2,
+            min_height: float = 0.6,
     ):
         """__init__.
 
@@ -266,8 +266,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         #TODO implement stability reward
 
         # Min-Max scaling to ensure all rewards are in the range [-2, 0]
-        scaled_los_reward = -(los_reward)
-        scaled_smooth_reward = -2 * (smooth_reward / self.smooth_max)
+        scaled_los_reward = -(los_reward) + 2
+        scaled_smooth_reward = -2 * (smooth_reward / self.smooth_max) + 2
 
         self.info["reward_components"] = {
             "scaled_los_reward": scaled_los_reward,
