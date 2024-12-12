@@ -5,9 +5,12 @@ from typing import Any, Literal
 import numpy as np
 from PyFlyt.core import Aviary
 from gymnasium import spaces
+import pybullet as p
 
 from PyFlyt.gym_envs.quadx_envs.quadx_base_env import QuadXBaseEnv
 from PyFlyt.gym_envs.utils.waypoint_handler import WaypointHandler
+
+from Envs.Rewards.reward import Reward
 
 
 class SingleWaypointQuadXEnv(QuadXBaseEnv):
@@ -37,9 +40,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self,
             num_targets: int = 1,
             use_yaw_targets: bool = False,
-            goal_reach_distance: float = 0.2,
+            goal_reach_distance: float = 1.0,
             goal_reach_angle: float = 0.1,
-            flight_mode: int = 0,  # -1: motor-thrust control; 0: PYRT-Control; 1: nudge control;
+            flight_mode: int = 1,
             flight_dome_size: float = 30.0,
             max_duration_seconds: float = 10.0,
             angle_representation: Literal["euler", "quaternion"] = "quaternion",
@@ -67,8 +70,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         """
 
-        self.start_height = 0.5*flight_dome_size  # start in the middle of the flight dome
-        self.prev_pos = np.array([0.0, 0.0, self.start_height])
+        self.start_height = 0.1*flight_dome_size  # start in the middle of the flight dome
+
         super().__init__(
             start_pos=np.array([[0.0, 0.0, self.start_height]]),
             flight_mode=flight_mode,
@@ -92,6 +95,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             np_random=self.np_random,
         )
 
+        self.goal_reach_distance = goal_reach_distance
         self.state = None
         self.xyz_limit = np.pi
         self.thrust_limit = 0.8
@@ -109,29 +113,51 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
             })
 
+        # Reward function related
+        steep_grad, negative = 1.0, False
+        self.reached_reward = 100.0
+        self.crash_reward = -100.0
+        self.unstable_reward = -100.0
+        self.reward_func = Reward(r_LOS=1.0, r_smooth=0.0, smooth_max=self.smooth_max,
+                                  flight_mode=flight_mode,
+                                  steep_grad=steep_grad,
+                                  negative=negative)
+
         self.flight_mode = flight_mode
-        if self.flight_mode == 1:
+        # -1: m1, m2, m3, m4 (motor thrusts)
+        # 0: vp, vq, vr, T (angular velocities and thrust)
+        # 1: p, q, r, vz (angular positions and vertical velocity)
+        # 2: vp, vq, vr, z (angular velocities and altitude)
+        # 3: p, q, r, z (angular positions and altitude)
+        # 4: u, v, vr, z (local linear velocities and altitude)
+        # 5: u, v, vr, vz (local linear velocities, angular velocities, and vertical velocity)
+        # 6: vx, vy, vr, vz (global linear velocities and angular velocities)
+        # 7: x, y, r, z (global linear positions)
+
+        if self.flight_mode == 1:  # p, q, r, vZ
+            self.action_space = spaces.Box(
+                low=np.array([-self.xyz_limit, -self.xyz_limit, -self.xyz_limit, -1.0]),
+                high=np.array([self.xyz_limit, self.xyz_limit, self.xyz_limit, 1.0]),
+                dtype=np.float64,
+            )
+
+        if self.flight_mode == 7:  # x, y, r, z
+            self.action_space = spaces.Box(
+                low=np.array([-np.inf, -np.inf, -self.xyz_limit, 0.0]),
+                high=np.array([np.inf, np.inf, self.xyz_limit, np.inf]),
+                dtype=np.float64,
+            )
+
+        elif self.flight_mode == "nudge":
             nudge = 0.1
-            high = np.array(
-                [
-                    nudge*self.xyz_limit,
-                    nudge*self.xyz_limit,
-                    nudge*self.xyz_limit,
-                    nudge*self.thrust_limit,
-                ]
+            self.action_space = spaces.Box(
+                low=np.array([-nudge*self.xyz_limit, -nudge*self.xyz_limit, -nudge*self.xyz_limit, -nudge*self.thrust_limit]),
+                high=np.array([nudge*self.xyz_limit, nudge*self.xyz_limit, nudge*self.xyz_limit, nudge*self.thrust_limit]),
+                dtype=np.float64,
             )
-            low = np.array(
-                [
-                    -nudge*self.xyz_limit,
-                    -nudge*self.xyz_limit,
-                    -nudge*self.xyz_limit,
-                    -nudge*self.thrust_limit,
-                ]
-            )
-            self.action_space = spaces.Box(low=low, high=high, dtype=np.float64)
 
     def step(self, action: np.ndarray):
-        if self.flight_mode == 1:  # Control via small nudges in pitch, yaw, roll, thrust
+        if self.flight_mode == "nudge":  # Control via small nudges in pitch, yaw, roll, thrust
             pitch, yaw, roll, thrust = super().compute_auxiliary()
             new_pitch = np.clip(pitch + action[0], -self.xyz_limit, self.xyz_limit)
             new_yaw = np.clip(yaw + action[1], -self.xyz_limit, self.xyz_limit)
@@ -213,12 +239,11 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         """Computes the state for a single waypoint environment."""
 
         if self.angle_representation == 1:
-            ang_vel, ang_pos, _, lin_pos, quaternion = super().compute_attitude()
+            ang_vel, ang_pos, lin_vel, lin_pos, quaternion = super().compute_attitude()
 
-            # Compute linear velocity based on previous position
-            # -> Explanation: The linear velocity computed by the simulation is somewhat flawed. See Obsidian
-            lin_vel = lin_pos - self.prev_pos
-            self.prev_pos = lin_pos
+            # Convert from body frame to global frame (https://taijunjet.com/PyFlyt/documentation/core/aviary.html#PyFlyt.core.Aviary.all_states)
+            rotation = np.array(p.getMatrixFromQuaternion(quaternion)).reshape(3, 3)
+            lin_vel = np.matmul(lin_vel, rotation.T)
 
             LOS = self.waypoints.targets[0] - lin_pos
             LOS_xy_proj, LOS_xz_proj = LOS[:2]/(np.linalg.norm(LOS[:2]) + 1e-10), LOS[[0, 2]]/(np.linalg.norm(LOS[[0, 2]]) + 1e-10)
@@ -254,63 +279,39 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
-        steep_grad = 1
-        azimuth_reward = np.abs(self.state["azimuth_angle"])**steep_grad
-        elevation_reward = np.abs(self.state["elevation_angle"])**steep_grad
-        los_reward = azimuth_reward + elevation_reward
-
-        # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
-        smooth_reward = np.linalg.norm(self.state["ang_pos"] - self.action[:3])  # Smooth control reward
-
-        # Stability reward
-        #TODO implement stability reward
-
-        # Min-Max scaling to ensure all rewards are in the range [-2, 0]
-        scaled_los_reward = -(los_reward) + 2
-        scaled_smooth_reward = -2 * (smooth_reward / self.smooth_max) + 2
+        self.reward, components = self.reward_func.yield_reward(self.state, self.action)
 
         self.info["reward_components"] = {
-            "scaled_los_reward": scaled_los_reward,
-            "scaled_smooth_reward": scaled_smooth_reward,
+            "w_los_reward": components["los_reward"]["unweighted"],  # weighted LOS reward
+            "w_los_smooth_reward": components["smooth_reward"]["unweighted"],  # weighted smooth reward
         }
-
-        reward = 1.0 * scaled_los_reward + 0.0 * scaled_smooth_reward
-        self.reward = reward[0]
 
         """Handle termination, truncation, and reward specifically for single waypoint."""
         # collision
         if np.any(self.env.contact_array[self.env.planeId]):
-            self.reward = -20.0
+            self.reward = self.crash_reward
             self.info["collision"] = True
             self.termination |= True
-            # print("Done: Collision")
 
         # exceed flight dome
         if np.linalg.norm(self.env.state(0)[-1]) > self.flight_dome_size:
-            # self.reward = -500.0
             self.info["out_of_bounds"] = True
             self.termination |= True
-            # print("Done: Out of bounds")
 
         # unstable flight
         if np.any(np.abs(self.state["ang_pos"]) > 0.6*np.pi):
-            self.reward = -20.0
+            self.reward = self.unstable_reward
             self.info["unstable"] = True
             self.termination |= True
-            # print(f"Done: Unstable ({self.state['ang_pos']})")
 
         # target reached
-        if self.waypoints.target_reached:
-            self.reward = 20.0
-
-            # advance the targets
+        # if self.waypoints.target_reached:
+        if self.info["distance_to_target"] < self.goal_reach_distance:
+            self.reward = self.reached_reward
             self.waypoints.advance_targets()
-
-            # update infos and dones
             self.truncation |= self.waypoints.all_targets_reached
             self.info["env_complete"] = self.waypoints.all_targets_reached
             self.info["num_targets_reached"] = self.waypoints.num_targets_reached
-            # print("Done: Target reached")
 
     def get_info(self):
         return self.info
