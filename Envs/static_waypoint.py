@@ -114,7 +114,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             })
 
         # Reward function related
-        steep_grad, negative = 1.0, False
+        steep_grad, negative = 1.0, True
         self.reached_reward = 100.0
         self.crash_reward = -100.0
         self.unstable_reward = -100.0

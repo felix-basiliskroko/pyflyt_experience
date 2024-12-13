@@ -78,7 +78,6 @@ def plotly_vector_field(linear_positions, linear_velocities, target_vector, size
     if save_path:
         fig.write_html(save_path)
     else:
-        # warnings.warn("The plot can only be displayed when the function is called in a Jupyter notebook.")
         fig.show()
 
 
