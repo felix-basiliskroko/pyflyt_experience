@@ -16,9 +16,11 @@ from stable_baselines3.common.callbacks import EvalCallback
 
 # Logdir
 eval_freq = 30_000
+
 # For Mac-Machine:
 # log_root_dir = "./logs/tensorboard_log/StaticWaypointEnv"
 # check_root_dir = "./checkpoints/StaticWaypointEnv"
+
 # For Windows-Machine:
 log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
 check_root_dir = "../checkpoints/StaticWaypointEnv"

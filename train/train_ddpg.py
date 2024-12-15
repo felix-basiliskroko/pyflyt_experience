@@ -11,15 +11,21 @@ from stable_baselines3 import DDPG
 
 # Logdir
 eval_freq = 30_000
-log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
-check_root_dir = "../checkpoints/StaticWaypointEnv"
+
+# For Mac-Machine:
+log_root_dir = "./logs/tensorboard_log/StaticWaypointEnv"
+check_root_dir = "./checkpoints/StaticWaypointEnv"
+
+# For Windows-Machine:
+# log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
+# check_root_dir = "../checkpoints/StaticWaypointEnv"
 run = "SingleWaypointNavigation"
-mod = "DDPG"
+mod = "DDPG_PosReward"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 env_id = "SingleWaypointQuadXEnv-v0"
-vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
-policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
+vec_env = make_vec_env(env_id=env_id, n_envs=10, seed=69)
+policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], qf=[64, 64]))
 action_noise = OrnsteinUhlenbeckActionNoise(mean=np.zeros(4), sigma=float(0.5) * np.ones(4))
 
 eval_env = make_vec_env(env_id=env_id, seed=42)

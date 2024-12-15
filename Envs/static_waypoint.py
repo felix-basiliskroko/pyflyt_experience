@@ -95,6 +95,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             np_random=self.np_random,
         )
 
+        self.flight_dome_size = flight_dome_size
         self.goal_reach_distance = goal_reach_distance
         self.state = None
         self.xyz_limit = np.pi
@@ -114,7 +115,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             })
 
         # Reward function related
-        steep_grad, negative = 1.0, True
+        steep_grad, negative = 1.0, False
         self.reached_reward = 100.0
         self.crash_reward = -100.0
         self.unstable_reward = -100.0
@@ -260,7 +261,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["elevation_angle"] = np.array([el_ang/np.pi])
             new_state["ang_pos"] = np.array([ang_pos/np.pi])
             new_state["ang_vel"] = np.array([ang_vel/np.pi])
-            new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.start_height else np.array([self.start_height])
+            new_state["altitude"] = np.array([2 * (lin_pos[2] / self.flight_dome_size) - 1])
 
             # Store non-observable states (for debugging/evaluation purposes)
             self.info["aux_state"] = super().compute_auxiliary()
