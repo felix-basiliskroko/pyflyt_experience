@@ -78,7 +78,7 @@ def ppo_tune(env_id: str, log_dir: str, buckets: int, num_total_steps: int, num_
                                     gae_lambda=gae,
                                     learning_rate=lr,
                                     n_steps=num_buffer_steps,
-                                    batch_size=num_buffer_steps*n_envs,
+                                    batch_size=num_buffer_steps,
                                     device=device)
 
                         model.learn(total_timesteps=num_total_steps, callback=eval_callback, tb_log_name="run")

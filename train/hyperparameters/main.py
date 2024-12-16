@@ -15,5 +15,5 @@ if not os.path.exists(hyperparameters_dir):
     print(f"File does not exist: {hyperparameters_dir}")
 
 ppo_tune(env_id=env_id, log_dir=log_dir, buckets=5, num_buffer_steps=2048, num_total_steps=60_000, n_runs=5,
-         n_envs=10, n_eval_eps=250, hyperparameter_save_path="hyperparameters_ppo.json",
+         n_envs=1, n_eval_eps=250, hyperparameter_save_path="hyperparameters_ppo.json",
          ent_coeffs=[0.0, 0.1], gammas=[0.85, 0.99], gae_lambdas=[0.9, 1.0], learning_rates=[1e-5, 5e-3])
