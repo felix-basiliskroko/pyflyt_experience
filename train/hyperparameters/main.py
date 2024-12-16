@@ -4,16 +4,16 @@ import os
 
 
 env_id = "SingleWaypointQuadXEnv-v0"
-log_dir = "./logs/ppo"
+log_dir = "./logs/hyper_ppo"
 
 # hyperparameters_dir = "hyperparameters_ppo.json"
 
 # Appropriate Ranges assumed from https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
-batch_tune(env_id, log_dir, values=[64, 128, 256, 512, 1024, 2042], num_steps=100_000)
-# entr_tune(env_id, log_dir, value_range=[0.0, 0.01], buckets=5, num_steps=100_000)
-# gamma_tune(env_id, log_dir, value_range=[0.8, 0.99], buckets=10, num_steps=75_000)
-# gae_tune(env_id, log_dir, value_range=[0.9, 1.0], buckets=5, num_steps=75_000)
-# lr_tune(env_id, log_dir, value_range=[1e-5, 5e-3], buckets=7, num_steps=75_000)
+# batch_tune(env_id, log_dir, values=[64, 128, 256, 512, 1024, 2048], num_steps=300_000)
+# gamma_tune(env_id, log_dir, value_range=[0.93, 0.99], buckets=5, num_steps=300_000)
+# entr_tune(env_id, log_dir, value_range=[0.0, 0.01], buckets=5, num_steps=300_000)
+# gae_tune(env_id, log_dir, value_range=[0.92, 1.0], buckets=5, num_steps=300_000)
+lr_tune(env_id, log_dir, value_range=[1e-5, 5e-3], buckets=5, num_steps=300_000)
 
 '''
 if not os.path.exists(hyperparameters_dir):

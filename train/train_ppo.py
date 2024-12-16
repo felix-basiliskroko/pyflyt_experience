@@ -39,6 +39,6 @@ for r in range(num_runs):
                      deterministic=True, render=True, n_eval_episodes=100)
     device = "cuda" if t.cuda.is_available() else "cpu"
 
-    model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=f'{dir}/shift={s}', policy_kwargs=policy_kwargs,
+    model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=f'{dir}', policy_kwargs=policy_kwargs,
                 device=device)  # For non-dict observation space
     model.learn(total_timesteps=total_steps, callback=eval_callback)
