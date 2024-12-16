@@ -200,7 +200,7 @@ def entr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_st
                     tensorboard_log=log_dir,
                     policy_kwargs=policy_kwargs,
                     ent_coef=ent_coeff,
-                    batch_size=512,
+                    batch_size=1024,
                     device=device)
         model.learn(total_timesteps=num_steps, tb_log_name=f'ent_coeff={round(ent_coeff, 3)}')
     print("Finished tuning entropy coefficient.")
