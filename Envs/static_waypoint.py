@@ -102,7 +102,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.thrust_limit = 0.8
 
         # For Reward scaling
-        self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))
+        if self.flight_mode == -1:
+            self.smooth_max = np.linalg.norm(np.array([self.xyz_limit, self.xyz_limit, self.xyz_limit]))
+        elif self.flight_mode == 1:
+            self.smooth_max = np.linalg.norm(np.array([2, 2, 2]))  # Since ang_pos in the obs-space and normalized_action are normalized to [-1, 1]
+        else:
+            self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))
 
         # Define observation space
         self.observation_space = spaces.Dict(
@@ -123,6 +128,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                                   flight_mode=flight_mode,
                                   steep_grad=steep_grad,
                                   negative=negative)
+        self.normalized_action = 0.0  # in range [-1, 1] as output by the policy (used to compute smooth_reward)
 
         self.flight_mode = flight_mode
         # -1: m1, m2, m3, m4 (motor thrusts)
@@ -135,14 +141,26 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # 6: vx, vy, vr, vz (global linear velocities and angular velocities)
         # 7: x, y, r, z (global linear positions)
 
-        if self.flight_mode == 1:  # p, q, r, vZ
+        if self.flight_mode == -1:  # (m1, m2, m3, m4)
             self.action_space = spaces.Box(
-                low=np.array([-self.xyz_limit, -self.xyz_limit, -self.xyz_limit, -1.0]),
-                high=np.array([self.xyz_limit, self.xyz_limit, self.xyz_limit, 1.0]),
+                low=np.array([0.0, 0.0, 0.0, 0.0]),
+                high=np.array([self.thrust_limit, self.thrust_limit, self.thrust_limit, self.thrust_limit]),
                 dtype=np.float64,
             )
 
-        if self.flight_mode == 7:  # x, y, r, z
+        elif self.flight_mode == 1:  # p, q, r, vZ
+            self.action_space = spaces.Box(
+                low=np.array([-1.0, -1.0, -1.0, -1.0]),
+                high=np.array([1.0, 1.0, 1.0, 1.0]),
+                dtype=np.float64,
+                # Explanation: Though counterintuitive, the actions (p,q,r) are defined to be in the range [-1, 1]
+                # (instead of [-pi, pi]) because the state space, particularly the angular positions, are normalized.
+                # To ensure that PyBullet receives the correct angular positions as expected under flight_mode=1 the actions
+                # are consequently scaled back to the range [-pi, pi] in the step() method. This is done to ensure interpretability
+                # with regards to the smooth_reward.
+            )
+
+        elif self.flight_mode == 7:  # x, y, r, z
             self.action_space = spaces.Box(
                 low=np.array([-np.inf, -np.inf, -self.xyz_limit, 0.0]),
                 high=np.array([np.inf, np.inf, self.xyz_limit, np.inf]),
@@ -157,6 +175,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 dtype=np.float64,
             )
 
+        else:
+            raise NotImplementedError(f"Flight: {self.flight_mode} mode not implemented.")
+
     def step(self, action: np.ndarray):
         if self.flight_mode == "nudge":  # Control via small nudges in pitch, yaw, roll, thrust
             pitch, yaw, roll, thrust = super().compute_auxiliary()
@@ -166,6 +187,10 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_thrust = np.clip(thrust + action[3], 0, self.thrust_limit)
 
             action = np.array([new_pitch, new_yaw, new_roll, new_thrust])
+
+        if self.flight_mode == 1:  # transform action from -1, 1 to -pi, pi
+            self.normalized_action = action
+            action = np.array([action[0]*self.xyz_limit, action[1]*self.xyz_limit, action[2]*self.xyz_limit, action[3]])
         return super().step(action)
 
     def reset(
@@ -280,7 +305,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
-        self.reward, components = self.reward_func.yield_reward(self.state, self.action)
+        self.reward, components = self.reward_func.yield_reward(self.state, self.normalized_action)
 
         self.info["reward_components"] = {
             "w_los_reward": components["los_reward"]["unweighted"],  # weighted LOS reward
