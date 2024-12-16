@@ -160,26 +160,49 @@ def ppo_tune(env_id: str, log_dir: str, buckets: int, num_total_steps: int, num_
                         hours, remainder = divmod(remainder, 3600)
                         minutes, seconds = divmod(remainder, 60)
                         print(f"Estimated remaining time: {int(days)} days, {int(hours)} hours, {int(minutes)} minutes, and {seconds:.2f} seconds")
+
+
+def batch_tune(env_id: str, log_dir: str, values: list, num_steps: int):
+    device = "cuda" if t.cuda.is_available() else "cpu"
+    vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
+    policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
+    log_dir = os.path.join(log_dir, "batch_size")
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+    log_dir = f"{log_dir}/steps={num_steps}"
+
+    for b_size in values:
+        model = PPO("MultiInputPolicy",
+                    vec_env,
+                    verbose=0,
+                    tensorboard_log=log_dir,
+                    policy_kwargs=policy_kwargs,
+                    batch_size=b_size,
+                    device=device)
+        model.learn(total_timesteps=num_steps, tb_log_name=f'batch_size={b_size}')
+    print("Finished tuning entropy coefficient.")
+
+
 def entr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_steps: int):
     device = "cuda" if t.cuda.is_available() else "cpu"
     vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
     policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
-    log_dir = os.path.join(log_dir, env_id, "entropy")
+    log_dir = os.path.join(log_dir, "entropy_coeff")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
     log_dir = f"{log_dir}/v_range={value_range}_buckets={buckets}_steps={num_steps}"
     ent_coeff_vals = np.linspace(value_range[0], value_range[1], buckets)
 
     for ent_coeff in ent_coeff_vals:
-        run_dir = f"{log_dir}/ent_coeff={round(ent_coeff, 3)}"
         model = PPO("MultiInputPolicy",
                     vec_env,
                     verbose=0,
-                    tensorboard_log=run_dir,
+                    tensorboard_log=log_dir,
                     policy_kwargs=policy_kwargs,
                     ent_coef=ent_coeff,
+                    batch_size=512,
                     device=device)
-        model.learn(total_timesteps=num_steps)
+        model.learn(total_timesteps=num_steps, tb_log_name=f'ent_coeff={round(ent_coeff, 3)}')
     print("Finished tuning entropy coefficient.")
 
 

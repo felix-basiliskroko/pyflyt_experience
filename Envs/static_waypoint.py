@@ -119,7 +119,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.reached_reward = 100.0
         self.crash_reward = -100.0
         self.unstable_reward = -100.0
-        self.reward_func = Reward(r_LOS=1.0, r_smooth=0.0, smooth_max=self.smooth_max,
+        self.reward_func = Reward(r_LOS=0.9, r_smooth=0.1, smooth_max=self.smooth_max,
                                   flight_mode=flight_mode,
                                   steep_grad=steep_grad,
                                   negative=negative)
