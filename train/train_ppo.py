@@ -6,6 +6,7 @@ import PyFlyt.gym_envs
 from stable_baselines3.common.vec_env import VecVideoRecorder
 
 import Envs.register
+from scheduler.scheduling import linear_schedule, exponential_schedule, cosine_annealing_schedule
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
