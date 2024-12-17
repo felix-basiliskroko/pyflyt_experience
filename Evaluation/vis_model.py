@@ -229,7 +229,8 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
     var_name = ["azimuth_angle", "elevation_angle",
                 "ang_vel", "altitude", "ang_pos", "quaternion", "aux_state",
                 "linear_position", "linear_velocity", "distance_to_target", "action",
-                "unstable", "collision", "out_of_bounds", "env_complete"]
+                "unstable", "collision", "out_of_bounds", "env_complete", "los_reward", "smooth_reward",
+                "reward"]
 
     for var in var_name:
         res[var] = []

@@ -127,7 +127,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.reached_reward = 100.0
         self.crash_reward = -100.0
         self.unstable_reward = -100.0
-        self.reward_func = Reward(r_LOS=0.9, r_smooth=0.1, smooth_max=self.smooth_max,
+        self.reward_func = Reward(r_LOS=1.0, r_smooth=0.0, smooth_max=self.smooth_max,
                                   flight_mode=flight_mode,
                                   steep_grad=steep_grad,
                                   negative=negative_reward)
@@ -309,11 +309,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
         self.reward, components = self.reward_func.yield_reward(self.state, self.normalized_action)
-
-        self.info["reward_components"] = {
-            "w_los_reward": components["los_reward"]["unweighted"],  # weighted LOS reward
-            "w_los_smooth_reward": components["smooth_reward"]["unweighted"],  # weighted smooth reward
-        }
+        self.info["los_reward"] = components["los_reward"]["unweighted"]
+        self.info["smooth_reward"] = components["smooth_reward"]["unweighted"]
+        self.info["reward"] = self.reward
 
         """Handle termination, truncation, and reward specifically for single waypoint."""
         # collision

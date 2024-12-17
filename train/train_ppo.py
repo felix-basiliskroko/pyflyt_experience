@@ -19,16 +19,16 @@ from stable_baselines3.common.callbacks import EvalCallback
 eval_freq = 30_000
 
 # For Mac-Machine:
-# log_root_dir = "./logs/tensorboard_log/StaticWaypointEnv"
-# check_root_dir = "./checkpoints/StaticWaypointEnv"
+log_root_dir = "./logs/final_log/StaticWaypointEnv"
+check_root_dir = "./checkpoints/StaticWaypointEnv"
 
 # For Windows-Machine:
-log_root_dir = "../logs/final_log/StaticWaypointEnv"
-check_root_dir = "../checkpoints/StaticWaypointEnv"
+# log_root_dir = "../logs/final_log/StaticWaypointEnv"
+# check_root_dir = "../checkpoints/StaticWaypointEnv"
 num_runs = 5
 
 run = "SingleWaypointNavigation"
-mod = "FullyTunedPositveRewards"
+mod = "FullyTunedOnlyLOS"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 for i in range(num_runs):
