@@ -226,12 +226,10 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
                                                                            render=render, deterministic=deterministic,
                                                                            return_episode_rewards=True)
     res = {}
-    '''var_name = ["azimuth_angle", "elevation_angle",
+    var_name = ["azimuth_angle", "elevation_angle",
                 "ang_vel", "altitude", "ang_pos", "quaternion", "aux_state",
                 "linear_position", "linear_velocity", "distance_to_target", "action",
-                "unstable", "collision", "out_of_bounds", "env_complete"]'''
-
-    var_name = ["unstable", "collision", "out_of_bounds"]
+                "unstable", "collision", "out_of_bounds", "env_complete"]
 
     for var in var_name:
         res[var] = []
@@ -262,28 +260,28 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
     res["translation_accuracy"] = []
 
     # Calculate the pitch, yaw, and roll angles
-    # for ep in res["ang_pos"]:
-    #     res["pitch"].append([i[0] for i in ep[:-1]])
-    #     res["yaw"].append([i[1] for i in ep[:-1]])
-    #     res["roll"].append([i[2] for i in ep[:-1]])
+    for ep in res["ang_pos"]:
+        res["pitch"].append([i[0] for i in ep[:-1]])
+        res["yaw"].append([i[1] for i in ep[:-1]])
+        res["roll"].append([i[2] for i in ep[:-1]])
 
     # Calculate the pitch, yaw, and roll angular velocities
-    # for ep in res["ang_vel"]:  # ignore the last element of each episode
-    #     res["pitch_ang"].append([i[0] for i in ep[:-1]])
-    #     res["yaw_ang"].append([i[1] for i in ep[:-1]])
-    #     res["roll_ang"].append([i[2] for i in ep[:-1]])
+    for ep in res["ang_vel"]:  # ignore the last element of each episode
+        res["pitch_ang"].append([i[0] for i in ep[:-1]])
+        res["yaw_ang"].append([i[1] for i in ep[:-1]])
+        res["roll_ang"].append([i[2] for i in ep[:-1]])
 
     # Calculate translation accuracy (how accurately p,y,r actions are translated to angular positions of the UAV)
-    # for angular_list, action_list in zip(res["ang_pos"], res["action"]):
-    #     temp_list = []
-    #     for angular, action in zip(angular_list, action_list):
-    #         diff = np.abs(action[:3] - angular[:3])
-    #         temp_list.append(diff)
+    for angular_list, action_list in zip(res["ang_pos"], res["action"]):
+        temp_list = []
+        for angular, action in zip(angular_list, action_list):
+            diff = np.abs(action[:3] - angular[:3])
+            temp_list.append(diff)
 
-    #    res["translation_accuracy"].append(temp_list)
+    res["translation_accuracy"].append(temp_list)
 
-    # or ep in res["ang_pos"]:
-    #     res["smoothness"].append([np.linalg.norm(i) for i in ep[:-1]])
+    for ep in res["ang_pos"]:
+        res["smoothness"].append([np.linalg.norm(i) for i in ep[:-1]])
 
     res["num_term_flags"] = {
         "num_unstable": 0,
@@ -293,15 +291,15 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
         "out_of_time": 0
     }
 
-    # for ep in res["azimuth_angle"]:
-    #     ep.pop(-1)
+    for ep in res["azimuth_angle"]:
+        ep.pop(-1)
 
-    # for ep in res["elevation_angle"]:
-    #     ep.pop(-1)
+    for ep in res["elevation_angle"]:
+        ep.pop(-1)
 
-    # res["thrust"] = []
-    # for ep in res["aux_state"]:
-    #     res["thrust"].append([i[3] for i in ep[:-1]])
+    res["thrust"] = []
+    for ep in res["aux_state"]:
+        res["thrust"].append([i[3] for i in ep[:-1]])
 
     for ep in res["unstable"]:
         res["num_term_flags"]["num_unstable"] += 1 if ep[-1] else 0

@@ -23,7 +23,7 @@ eval_freq = 30_000
 # check_root_dir = "./checkpoints/StaticWaypointEnv"
 
 # For Windows-Machine:
-log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
+log_root_dir = "../logs/final_log/StaticWaypointEnv"
 check_root_dir = "../checkpoints/StaticWaypointEnv"
 num_runs = 5
 
