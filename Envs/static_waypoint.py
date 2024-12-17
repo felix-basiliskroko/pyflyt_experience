@@ -50,6 +50,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             render_mode: None | Literal["human", "rgb_array"] = None,
             render_resolution: tuple[int, int] = (480, 480),
             min_height: float = 0.6,
+            negative_reward: bool = False,
+            steep_grad: float = 1.0
     ):
         """__init__.
 
@@ -71,6 +73,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         """
 
         self.start_height = 0.1*flight_dome_size  # start in the middle of the flight dome
+        #TODO make sure that if negative_reward is true that the steep_grad is appropriately set
+        # to avoid misleading reward calculations down the road
 
         super().__init__(
             start_pos=np.array([[0.0, 0.0, self.start_height]]),
@@ -120,14 +124,13 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             })
 
         # Reward function related
-        steep_grad, negative = 1.0, False
         self.reached_reward = 100.0
         self.crash_reward = -100.0
         self.unstable_reward = -100.0
         self.reward_func = Reward(r_LOS=0.9, r_smooth=0.1, smooth_max=self.smooth_max,
                                   flight_mode=flight_mode,
                                   steep_grad=steep_grad,
-                                  negative=negative)
+                                  negative=negative_reward)
         self.normalized_action = 0.0  # in range [-1, 1] as output by the policy (used to compute smooth_reward)
 
         self.flight_mode = flight_mode

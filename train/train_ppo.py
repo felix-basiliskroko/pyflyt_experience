@@ -6,6 +6,7 @@ import PyFlyt.gym_envs
 from stable_baselines3.common.vec_env import VecVideoRecorder
 
 import Envs.register
+from scheduler.scheduling import linear_schedule, exponential_schedule, cosine_annealing_schedule
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
@@ -24,26 +25,33 @@ eval_freq = 30_000
 # For Windows-Machine:
 log_root_dir = "../logs/tensorboard_log/StaticWaypointEnv"
 check_root_dir = "../checkpoints/StaticWaypointEnv"
+num_runs = 5
 
 run = "SingleWaypointNavigation"
-mod = "AngPosMovement"
+mod = "FullyTunedPositveRewards"
 dir = f'{log_root_dir}/{run}/{mod}'
 
-env_id = "SingleWaypointQuadXEnv-v0"
-vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
-policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
+for i in range(num_runs):
+    env_id = "SingleWaypointQuadXEnv-v0"
+    vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
+    policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
 
-eval_env = make_vec_env(env_id=env_id, seed=42)
-eval_callback = EvalCallback(eval_env, best_model_save_path=f"./{check_root_dir}/{run}/{mod}",
-                 log_path=f"./{check_root_dir}/{run}/{mod}", eval_freq=eval_freq,
-                 deterministic=True, render=True, n_eval_episodes=5)
-device = "cuda" if t.cuda.is_available() else "cpu"
+    eval_env = make_vec_env(env_id=env_id, seed=42)
+    eval_callback = EvalCallback(eval_env, best_model_save_path=f"./{check_root_dir}/{run}/{mod}/best_model_run_{i}",
+                     log_path=f"./{check_root_dir}/{run}/{mod}", eval_freq=eval_freq,
+                     deterministic=True, render=True, n_eval_episodes=5)
+    device = "cuda" if t.cuda.is_available() else "cpu"
 
+    lr = 7e-3
+    # lr = linear_schedule(initial_lr=lr)
+    # lr = exponential_schedule(initial_lr=lr, decay_rate=0.99)
+    # lr = cosine_annealing_schedule(initial_lr=8e-3, min_lr=1e-3)
 
-model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
-            ent_coef=0.007,
-            gamma=0.863,
-            learning_rate=8e-4,
-            gae_lambda=0.9625,
-            device=device)  # For non-dict observation space
-model.learn(total_timesteps=2_000_000, callback=eval_callback)
+    model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
+                batch_size=1024,
+                ent_coef=0.0,
+                gamma=0.985,
+                learning_rate=8e-4,
+                gae_lambda=0.9875,
+                device=device)  # For non-dict observation space
+    model.learn(total_timesteps=2_000_000, callback=eval_callback)
