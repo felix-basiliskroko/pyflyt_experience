@@ -210,7 +210,7 @@ def gamma_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_s
     device = "cuda" if t.cuda.is_available() else "cpu"
     vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
     policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
-    log_dir = os.path.join(log_dir, env_id, "gamma")
+    log_dir = os.path.join(log_dir, "gamma")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
     log_dir = f"{log_dir}/v_range={value_range}_buckets={buckets}_steps={num_steps}"
@@ -235,7 +235,7 @@ def gae_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_ste
     device = "cuda" if t.cuda.is_available() else "cpu"
     vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
     policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
-    log_dir = os.path.join(log_dir, env_id, "gae")
+    log_dir = os.path.join(log_dir, "gae")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
     log_dir = f"{log_dir}/v_range={value_range}_buckets={buckets}_steps={num_steps}"
@@ -248,8 +248,9 @@ def gae_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_ste
                     verbose=0,
                     tensorboard_log=run_dir,
                     policy_kwargs=policy_kwargs,
-                    ent_coef=0.007,
-                    gamma=0.863,
+                    batch_size=1024,
+                    ent_coef=0.0,
+                    gamma=0.985,
                     gae_lambda=gae,
                     device=device)
         model.learn(total_timesteps=num_steps)
@@ -260,7 +261,7 @@ def lr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_step
     device = "cuda" if t.cuda.is_available() else "cpu"
     vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69)
     policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))
-    log_dir = os.path.join(log_dir, env_id, "lr")
+    log_dir = os.path.join(log_dir, "lr")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
     log_dir = f"{log_dir}/v_range={value_range}_buckets={buckets}_steps={num_steps}"
@@ -273,9 +274,10 @@ def lr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_step
                     verbose=0,
                     tensorboard_log=run_dir,
                     policy_kwargs=policy_kwargs,
-                    ent_coef=0.007,
-                    gamma=0.863,
-                    gae_lambda=0.9625,
+                    batch_size=1024,
+                    ent_coef=0.0,
+                    gamma=0.985,
+                    gae_lambda=0.9875,
                     learning_rate=lr,
                     device=device)
         model.learn(total_timesteps=num_steps)
