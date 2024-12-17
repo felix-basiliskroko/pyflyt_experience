@@ -223,7 +223,8 @@ def gamma_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_s
                     verbose=0,
                     tensorboard_log=run_dir,
                     policy_kwargs=policy_kwargs,
-                    ent_coef=0.007,
+                    batch_size=1024,
+                    ent_coef=0.0,
                     gamma=gamma,
                     device=device)
         model.learn(total_timesteps=num_steps)
