@@ -50,7 +50,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             render_mode: None | Literal["human", "rgb_array"] = None,
             render_resolution: tuple[int, int] = (480, 480),
             min_height: float = 0.6,
-            negative_reward: bool = False,
+            negative_reward: bool = True,
             steep_grad: float = 1.0
     ):
         """__init__.
@@ -131,7 +131,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                                   flight_mode=flight_mode,
                                   steep_grad=steep_grad,
                                   negative=negative_reward)
-        self.normalized_action = 0.0  # in range [-1, 1] as output by the policy (used to compute smooth_reward)
+        # self.normalized_action = 0.0  # in range [-1, 1] as output by the policy (used to compute smooth_reward)
 
         self.flight_mode = flight_mode
         # -1: m1, m2, m3, m4 (motor thrusts)
@@ -153,9 +153,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         elif self.flight_mode == 1:  # p, q, r, vZ
             self.action_space = spaces.Box(
-                low=np.array([-1.0, -1.0, -1.0, -1.0]),
-                high=np.array([1.0, 1.0, 1.0, 1.0]),
-                dtype=np.float64,
+                low=np.array([-self.xyz_limit, -self.xyz_limit, -self.xyz_limit, -1.0]),
+                high=np.array([self.xyz_limit, self.xyz_limit, self.xyz_limit, 1.0]),
+                dtype=np.float64
+                # low=np.array([-1.0, -1.0, -1.0, -1.0]),
+                # high=np.array([1.0, 1.0, 1.0, 1.0]),
+                # dtype=np.float64,
                 # Explanation: Though counterintuitive, the actions (p,q,r) are defined to be in the range [-1, 1]
                 # (instead of [-pi, pi]) because the state space, particularly the angular positions, are normalized.
                 # To ensure that PyBullet receives the correct angular positions as expected under flight_mode=1 the actions
@@ -191,9 +194,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
             action = np.array([new_pitch, new_yaw, new_roll, new_thrust])
 
-        if self.flight_mode == 1:  # transform action from -1, 1 to -pi, pi
-            self.normalized_action = action
-            action = np.array([action[0]*self.xyz_limit, action[1]*self.xyz_limit, action[2]*self.xyz_limit, action[3]])
+        # if self.flight_mode == 1:  # transform action from -1, 1 to -pi, pi
+            # self.normalized_action = action
+            # action = np.array([action[0]*self.xyz_limit, action[1]*self.xyz_limit, action[2]*self.xyz_limit, action[3]])
         return super().step(action)
 
     def reset(
@@ -240,7 +243,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # updated starting orientation. The orientation is set to be azimuth-aligned with the target vector.
         #TODO Messy workaround. Find a better way to handle this. Maybe overwrite self.begin_reset()?
 
-        self.action = np.zeros(4)
+        self.action = np.zeros(4)  #TODO add check for flight_mode
         self.info["num_targets_reached"] = 0
         super().end_reset()
 
@@ -254,7 +257,6 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         self.info["waypoint"] = self.waypoints.targets[0]
         self.info["unstable"] = False
-        self.prev_pos = np.array([0.0, 0.0, self.start_height])
 
         return self.state, self.info
 
@@ -289,7 +291,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["elevation_angle"] = np.array([el_ang/np.pi])
             new_state["ang_pos"] = np.array([ang_pos/np.pi])
             new_state["ang_vel"] = np.array([ang_vel/np.pi])
-            new_state["altitude"] = np.array([2 * (lin_pos[2] / self.flight_dome_size) - 1])
+            # new_state["altitude"] = np.array([2 * (lin_pos[2] / self.flight_dome_size) - 1])
+            new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.start_height else np.array([self.start_height])
 
             # Store non-observable states (for debugging/evaluation purposes)
             self.info["aux_state"] = super().compute_auxiliary()
@@ -308,7 +311,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
 
         # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
-        self.reward, components = self.reward_func.yield_reward(self.state, self.normalized_action)
+        self.reward, components = self.reward_func.yield_reward(self.state, self.action)
         self.info["los_reward"] = components["los_reward"]["unweighted"]
         self.info["smooth_reward"] = components["smooth_reward"]["unweighted"]
         self.info["reward"] = self.reward

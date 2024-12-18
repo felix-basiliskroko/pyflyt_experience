@@ -19,16 +19,16 @@ from stable_baselines3.common.callbacks import EvalCallback
 eval_freq = 30_000
 
 # For Mac-Machine:
-log_root_dir = "./logs/final_log/StaticWaypointEnv"
-check_root_dir = "./checkpoints/StaticWaypointEnv"
+# log_root_dir = "./logs/final_log/StaticWaypointEnv"
+# check_root_dir = "./checkpoints/StaticWaypointEnv"
 
 # For Windows-Machine:
-# log_root_dir = "../logs/final_log/StaticWaypointEnv"
-# check_root_dir = "../checkpoints/StaticWaypointEnv"
+log_root_dir = "../logs/final_log/StaticWaypointEnv"
+check_root_dir = "../checkpoints/StaticWaypointEnv"
 num_runs = 5
 
 run = "SingleWaypointNavigation"
-mod = "FullyTunedOnlyLOS"
+mod = "OptimHyperparamsNegRewards"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 for i in range(num_runs):
@@ -47,6 +47,14 @@ for i in range(num_runs):
     # lr = exponential_schedule(initial_lr=lr, decay_rate=0.99)
     # lr = cosine_annealing_schedule(initial_lr=8e-3, min_lr=1e-3)
 
+    '''model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
+                ent_coef=0.007,
+                gamma=0.863,
+                learning_rate=8e-4,
+                gae_lambda=0.9625,
+                device=device)  # For non-dict observation space
+    model.learn(total_timesteps=2_000_000, callback=eval_callback)
+    '''
     model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
                 batch_size=1024,
                 ent_coef=0.0,
