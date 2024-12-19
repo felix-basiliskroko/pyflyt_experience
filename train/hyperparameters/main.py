@@ -9,7 +9,7 @@ log_dir = "./logs/ppo"
 # hyperparameters_dir = "hyperparameters_ppo.json"
 
 # Appropriate Ranges assumed from https://medium.com/aureliantactics/ppo-hyperparameters-and-ranges-6fc2d29bccbe
-# batch_tune(env_id, log_dir, values=[64, 128, 256, 512, 1024, 2042], num_steps=100_000)
+# batch_tune(env_id, log_dir, values=[64, 128, 256, 512, 1024, 2048], num_steps=100_000)
 # entr_tune(env_id, log_dir, value_range=[0.0, 0.01], buckets=7, num_steps=100_000)
 # gamma_tune(env_id, log_dir, value_range=[0.85, 0.99], buckets=8, num_steps=100_000)
 # gae_tune(env_id, log_dir, value_range=[0.9, 1.0], buckets=5, num_steps=100_000)
