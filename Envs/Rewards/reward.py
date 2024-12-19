@@ -19,7 +19,7 @@ class Reward():
         if self.r_LOS_weight is not None:
             r_LOS = -self.LOS_reward(state)
             if not self.negative:
-                r_LOS += 2  # Bring reward to positive range
+                r_LOS += (2 * self.steep_grad)  # Bring reward to positive range
             weighted_r_LOS = self.r_LOS_weight * r_LOS
             reward_signal += weighted_r_LOS  # Add weighted LOS reward
             reward_components["los_reward"] = {"unweighted": r_LOS, "weighted": weighted_r_LOS}

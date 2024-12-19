@@ -28,7 +28,7 @@ check_root_dir = "../checkpoints/StaticWaypointEnv"
 num_runs = 5
 
 run = "SingleWaypointNavigation"
-mod = "OptimHyperparamsNegRewards"
+mod = "LOSOnlySteepGrad=2.0_NegReward"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 for i in range(num_runs):
@@ -42,18 +42,19 @@ for i in range(num_runs):
                      deterministic=True, render=True, n_eval_episodes=5)
     device = "cuda" if t.cuda.is_available() else "cpu"
 
-    lr = 7e-3
+    # lr = 7e-3
+    lr = 4e-3
     # lr = linear_schedule(initial_lr=lr)
     # lr = exponential_schedule(initial_lr=lr, decay_rate=0.99)
     # lr = cosine_annealing_schedule(initial_lr=8e-3, min_lr=1e-3)
 
-    '''model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
+    model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
                 ent_coef=0.007,
                 gamma=0.863,
                 learning_rate=8e-4,
                 gae_lambda=0.9625,
                 device=device)  # For non-dict observation space
-    model.learn(total_timesteps=2_000_000, callback=eval_callback)
+    model.learn(total_timesteps=250_000, callback=eval_callback)
     '''
     model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
                 batch_size=1024,
@@ -62,4 +63,4 @@ for i in range(num_runs):
                 learning_rate=8e-4,
                 gae_lambda=0.9875,
                 device=device)  # For non-dict observation space
-    model.learn(total_timesteps=2_000_000, callback=eval_callback)
+    model.learn(total_timesteps=2_000_000, callback=eval_callback)'''

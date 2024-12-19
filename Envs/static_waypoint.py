@@ -51,7 +51,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             render_resolution: tuple[int, int] = (480, 480),
             min_height: float = 0.6,
             negative_reward: bool = True,
-            steep_grad: float = 1.0
+            steep_grad: float = 2.0
     ):
         """__init__.
 

@@ -302,22 +302,50 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
     for ep in res["aux_state"]:
         res["thrust"].append([i[3] for i in ep[:-1]])
 
+    complete_length = []
+    out_of_bound_length = []
+    unstable_length = []
+    collision_length = []
+
     for ep in res["unstable"]:
-        res["num_term_flags"]["num_unstable"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_unstable"] += 1
+            unstable_length.append(len(ep))
 
     for ep in res["collision"]:
-        res["num_term_flags"]["num_collision"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_collision"] += 1
+            collision_length.append(len(ep))
 
     for ep in res["out_of_bounds"]:
-        res["num_term_flags"]["num_out_of_bounds"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_out_of_bounds"] += 1
+            out_of_bound_length.append(len(ep))
 
     for ep in res["env_complete"]:
-        res["num_term_flags"]["num_env_complete"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_env_complete"] += 1
+            complete_length.append(len(ep))
 
     res["num_term_flags"]["num_out_of_time"] = n_eval_episodes - (res["num_term_flags"]["num_unstable"]
                                                                   + res["num_term_flags"]["num_collision"]
                                                                   + res["num_term_flags"]["num_out_of_bounds"]
                                                                   + res["num_term_flags"]["num_env_complete"])
+
+    res["mean_term_time"] = {
+        "mean_unstable_time": np.mean(unstable_length) if len(unstable_length) > 0 else 0,
+        "mean_collision_time": np.mean(collision_length) if len(collision_length) > 0 else 0,
+        "mean_out_of_bound_time": np.mean(out_of_bound_length) if len(out_of_bound_length) > 0 else 0,
+        "mean_complete_time": np.mean(complete_length) if len(complete_length) > 0 else 0
+    }
+
+    res["var_term_time"] = {
+        "var_unstable_time": np.var(unstable_length) if len(unstable_length) > 0 else 0,
+        "var_collision_time": np.var(collision_length) if len(collision_length) > 0 else 0,
+        "var_out_of_bound_time": np.var(out_of_bound_length) if len(out_of_bound_length) > 0 else 0,
+        "var_complete_time": np.var(complete_length) if len(complete_length) > 0 else 0
+    }
+
 
     return res
 
