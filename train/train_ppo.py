@@ -28,7 +28,7 @@ check_root_dir = "../checkpoints/StaticWaypointEnv"
 num_runs = 5
 
 run = "SingleWaypointNavigation"
-mod = "LOSOnlySteepGrad=2.0_NegReward"
+mod = "LOSOnlySteepGrad=2.0_PosReward"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 for i in range(num_runs):
