@@ -1,0 +1,46 @@
+
+
+
+Steep Grad=1.0,Negative Reward=False,88
+Best model checkpoint: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=1.0_NegReward=False/best_model_run_2/best_model.zip
+TermFlags: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=1.0_NegReward=False/best_model_run_2/best_model.zip
+  num_unstable: 0
+  num_collision: 0
+  num_out_of_bounds: 350
+  num_env_complete: 88
+  out_of_time: 0
+  num_out_of_time: 62
+
+
+Steep Grad=1.0,Negative Reward=True,107
+Best model checkpoint: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=1.0_NegReward=True/best_model_run_1/best_model.zip
+TermFlags: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=1.0_NegReward=True/best_model_run_1/best_model.zip
+  num_unstable: 0
+  num_collision: 100
+  num_out_of_bounds: 119
+  num_env_complete: 107
+  out_of_time: 0
+  num_out_of_time: 174
+
+
+Steep Grad=2.0,Negative Reward=False,52
+Best model checkpoint: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=2.0_NegReward=False/best_model_run_4/best_model.zip
+TermFlags: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=2.0_NegReward=False/best_model_run_4/best_model.zip
+  num_unstable: 0
+  num_collision: 0
+  num_out_of_bounds: 157
+  num_env_complete: 52
+  out_of_time: 0
+  num_out_of_time: 291
+
+
+Steep Grad=2.0,Negative Reward=True,0
+Best model checkpoint: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=2.0_NegReward=True/best_model_run_0/best_model.zip
+TermFlags: ./../checkpoints/experiments/SingleWaypointNavigation/E1_LOSOnly_SteepGrad=2.0_NegReward=True/best_model_run_0/best_model.zip
+  num_unstable: 0
+  num_collision: 0
+  num_out_of_bounds: 500
+  num_env_complete: 0
+  out_of_time: 0
+  num_out_of_time: 0
+

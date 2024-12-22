@@ -15,30 +15,33 @@ from stable_baselines3.common.callbacks import EvalCallback
 from Evaluation.vis_model import aggregate_eval
 
 # Logdir
-eval_freq = 25_000
 
 # For Mac-Machine:
 # log_root_dir = "./logs/final_log/StaticWaypointEnv"
 # check_root_dir = "./checkpoints/StaticWaypointEnv"
 
 # For Windows-Machine:
-log_root_dir = "../logs/final_log/StaticWaypointEnv"
-check_root_dir = "../checkpoints/StaticWaypointEnv"
-num_runs = 1
+log_root_dir = "../logs/experiments/"
+check_root_dir = "../checkpoints/experiments"
+
 steep_grad = 1.0
-eval_eps = 500
-eval_during_training = 50
 neg_rew = False
+
+total_steps = 250_000
+eval_freq = total_steps // 10
+num_runs = 5
+eval_eps = 500
+eval_during_training = 10
 
 run = "SingleWaypointNavigation"
 mod = f"E1_LOSOnly_SteepGrad={steep_grad}_NegReward={neg_rew}"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 best_model_path = None
-best_num_env_complete = -1
 all_results = []
 
 for experiment in range(7):
+    best_num_env_complete = -1
     for i in range(num_runs):
         env_id = "SingleWaypointQuadXEnv-v0"
         vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69, env_kwargs={"negative_reward": neg_rew, "steep_grad": steep_grad})
@@ -47,7 +50,7 @@ for experiment in range(7):
         eval_env = make_vec_env(env_id=env_id, seed=42, env_kwargs={"negative_reward": neg_rew, "steep_grad": steep_grad})
         eval_callback = EvalCallback(eval_env, best_model_save_path=f"./{check_root_dir}/{run}/{mod}/best_model_run_{i}",
                                      log_path=f"./{check_root_dir}/{run}/{mod}", eval_freq=eval_freq,
-                                     deterministic=True, render=True, n_eval_episodes=100)
+                                     deterministic=True, render=True, n_eval_episodes=eval_during_training)
         device = "cuda" if t.cuda.is_available() else "cpu"
 
         lr = 7e-3
@@ -70,7 +73,7 @@ for experiment in range(7):
                     gae_lambda=0.9875,
                     batch_size=1024,
                     device=device)  # For non-dict observation space
-        model.learn(total_timesteps=250_000, callback=eval_callback, tb_log_name=f'run_{i}')
+        model.learn(total_timesteps=total_steps, callback=eval_callback, tb_log_name=f'run_{i}')
 
         # Evaluate the model and check for best num_env_complete
         model_path = f"./{check_root_dir}/{run}/{mod}/best_model_run_{i}/best_model.zip"
@@ -78,16 +81,17 @@ for experiment in range(7):
         _ = eval_env.reset()
         model = PPO.load(model_path, deterministic=True)
 
-        result = aggregate_eval(model, eval_env, num_eval_eps=500, render=False, include_waypoints=True)
-        all_results.append((model_path, result["num_term_flags"]))
+        result = aggregate_eval(model, eval_env, n_eval_episodes=eval_eps, render=False, include_waypoints=True)
+
         if result["num_term_flags"]["num_env_complete"] > best_num_env_complete:
             best_num_env_complete = result["num_term_flags"]["num_env_complete"]
             best_model_path = model_path
+            best_term_flags = result["num_term_flags"]
 
     # Write the results to the results file
     with open("results.txt", "a") as f:
         if experiment < 4:
-            f.write(f"\nExperiment: Steep Grad = {steep_grad}, Negative Reward = {neg_rew}\n")
+            f.write(f"\nSteep Grad={steep_grad},Negative Reward={neg_rew},{best_num_env_complete}\n")
         if experiment == 4:
             f.write("\n\nExperiment: Linear Learning Rate Decay\n")
         elif experiment == 5:
@@ -95,11 +99,10 @@ for experiment in range(7):
         elif experiment == 6:
             f.write("\n\nExperiment: Cosine Annealing Learning Rate Decay\n")
         f.write(f"Best model checkpoint: {best_model_path}\n")
-        for path, flags in all_results:
-            f.write(f"Model: {path}\n")
-            for key, value in flags.items():
-                f.write(f"  {key}: {value}\n")
-            f.write("\n")
+        f.write(f"TermFlags: {best_model_path}\n")
+        for key, value in best_term_flags.items():
+            f.write(f"  {key}: {value}\n")
+        f.write("\n")
 
     if experiment == 0:
         steep_grad = 1.0
@@ -123,20 +126,17 @@ for experiment in range(7):
         with open("results.txt", "r") as f:
             lines = f.readlines()
 
-        best_result = None
-        best_config = None
+        best_result = -1
+        best_s, best_n = None, None
         for line in lines:
-            if "Best model checkpoint" in line:
-                checkpoint_line = line
-            if "Steep Grad" in line and "Negative Reward" in line:
-                config_line = line
-                if best_result is None or best_num_env_complete > best_result:
-                    best_result = best_num_env_complete
-                    best_config = config_line
+            if "Steep Grad" in line and "Negative Reward" in line:  # Only consider the lines with the results
+                s, n, env_comp = line.split(",")
+                s, n = s.split("=")[1], n.split("=")[1]
+                if int(env_comp) > best_result:
+                    best_result = int(env_comp)
+                    best_s = float(s)
+                    best_n = "True" in n
 
-        # Parse the best configuration and update variables
-        if best_config:
-            steep_grad = float(best_config.split("Steep Grad = ")[1].split(",")[0])
-            neg_rew = "True" in best_config.split("Negative Reward = ")[1]
-            mod = f"E1_LOSOnly_SteepGrad={steep_grad}_NegReward={neg_rew}"
-            dir = f'{log_root_dir}/{run}/{mod}'
+        steep_grad, neg_rew = best_s, best_n
+        mod = f"E1_LOSOnly_SteepGrad={steep_grad}_NegReward={neg_rew}"
+        dir = f'{log_root_dir}/{run}/{mod}'
