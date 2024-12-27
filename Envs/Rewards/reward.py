@@ -28,7 +28,7 @@ class Reward():
         if self.r_smooth_weight is not None:
             r_smooth = -2 * (self.smooth_reward(state, action) / self.smooth_max)  # Normalize smooth reward to range -2 to 0
             if not self.negative:
-                r_smooth += 2  # Bring reward to positive range
+                r_smooth += (2 * self.steep_grad)  # Bring reward to positive range
             weighted_r_smooth = self.r_smooth_weight * r_smooth
             reward_signal += weighted_r_smooth  # Add weighted smooth reward
             reward_components["smooth_reward"] = {"unweighted": r_smooth, "weighted": weighted_r_smooth}

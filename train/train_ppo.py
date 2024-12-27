@@ -25,10 +25,10 @@ check_root_dir = "./checkpoints/StaticWaypointEnv"
 # For Windows-Machine:
 # log_root_dir = "../logs/final_log/StaticWaypointEnv"
 # check_root_dir = "../checkpoints/StaticWaypointEnv"
-num_runs = 5
+num_runs = 1
 
 run = "SingleWaypointNavigation"
-mod = "tmp"
+mod = "FullyTunedOnlyLOS"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 for i in range(num_runs):
@@ -43,10 +43,10 @@ for i in range(num_runs):
     device = "cuda" if t.cuda.is_available() else "cpu"
 
     # lr = 7e-3
-    lr = 7e-3
+    lr = 8e-4
     # lr = linear_schedule(initial_lr=lr)
     # lr = exponential_schedule(initial_lr=lr, decay_rate=0.99)
-    lr = cosine_annealing_schedule(initial_lr=8e-3, min_lr=1e-3)
+# lr = cosine_annealing_schedule(initial_lr=8e-3, min_lr=1e-3)
 
     '''
     model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
