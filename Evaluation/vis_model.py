@@ -211,7 +211,7 @@ def plot_termination_flags(flag_data):
     fig.show()
 
 
-def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, include_waypoints=True) -> dict[str, list[list[np.array]]]:
+def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, include_waypoints=True):
     """
     Evaluate the model on the environment for a given number of episodes and aggregate the values of a given variable.
     :param model: PPO Model
@@ -319,7 +319,7 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
                                                                   + res["num_term_flags"]["num_out_of_bounds"]
                                                                   + res["num_term_flags"]["num_env_complete"])
 
-    return res
+    return res, episode_rewards, episode_lengths
 
 
 def visualize_plotly_model(result, model, env, n_eval_episodes, save_path=None):
