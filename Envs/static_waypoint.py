@@ -49,6 +49,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             agent_hz: int = 30,
             render_mode: None | Literal["human", "rgb_array"] = None,
             render_resolution: tuple[int, int] = (480, 480),
+            steep_grad: float = 1.0,
+            reward_shift: float = 0.0,
             min_height: float = 0.6,
     ):
         """__init__.
@@ -100,9 +102,6 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.xyz_limit = np.pi
         self.thrust_limit = 0.8
 
-        # For Reward scaling
-        self.smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))
-
         # Define observation space
         self.observation_space = spaces.Dict(
             {
@@ -113,15 +112,16 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
             })
 
-        # Reward function related
-        steep_grad, negative = 1.0, False
+        # For Reward scaling
+        smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))
+
         self.reached_reward = 100.0
         self.crash_reward = -100.0
         self.unstable_reward = -100.0
-        self.reward_func = Reward(r_LOS=1.0, r_smooth=0.0, smooth_max=self.smooth_max,
+        self.reward_func = Reward(r_LOS=1.0, r_smooth=0.0, smooth_max=smooth_max,
                                   flight_mode=flight_mode,
                                   steep_grad=steep_grad,
-                                  negative=negative)
+                                  reward_shift=reward_shift)
 
         self.flight_mode = flight_mode
         # -1: m1, m2, m3, m4 (motor thrusts)
@@ -260,7 +260,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["elevation_angle"] = np.array([el_ang/np.pi])
             new_state["ang_pos"] = np.array([ang_pos/np.pi])
             new_state["ang_vel"] = np.array([ang_vel/np.pi])
-            new_state["altitude"] = np.array([lin_pos[2]]) if lin_pos[2] < self.start_height else np.array([self.start_height])
+            new_state["altitude"] = np.array([lin_pos[2] / self.flight_dome_size])  # Normalize altitude to be in the range [0, 1]
 
             # Store non-observable states (for debugging/evaluation purposes)
             self.info["aux_state"] = super().compute_auxiliary()
