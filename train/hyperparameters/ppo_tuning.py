@@ -302,8 +302,9 @@ def lr_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_step
                     verbose=0,
                     tensorboard_log=log_dir,
                     policy_kwargs=policy_kwargs,
-                    ent_coef=0.007,
-                    gamma=0.863,
+                    batch_size=256,
+                    ent_coef=0.009,
+                    gamma=0.975,
                     gae_lambda=0.94,
                     learning_rate=lr,
                     device=device)
