@@ -1,5 +1,5 @@
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC
 import gymnasium as gym
 from Envs.WaypointEnv import QuadXWaypoint
 from Envs import register
@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
+from stable_baselines3.common.base_class import BaseAlgorithm
 # from stable_baselines3.common.evaluation import evaluate_policy
 from Evaluation.evaluation import evaluate_policy
 from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
@@ -230,7 +231,7 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
     var_name = ["azimuth_angle", "elevation_angle",
                 "ang_vel", "altitude", "ang_pos", "quaternion", "aux_state",
                 "linear_position", "linear_velocity", "distance_to_target", "action",
-                "unstable", "collision", "out_of_bounds", "env_complete"]
+                "unstable", "collision", "out_of_bounds", "env_complete", "m_thrusts"]
 
     for var in var_name:
         res[var] = []
@@ -249,7 +250,7 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
                     res[var].append([info[var] for info in ep])
                 # res[var][-1].pop(-1)
         else:
-            raise ValueError(f'Variable "{var}" not found in observations or infos.')
+            continue
 
     # Include waypoints in the results
     res["waypoints"] = waypoints
@@ -377,3 +378,84 @@ def visualize_model(model, env, n_eval_episodes, render, verbose=True):
 
     if verbose:
         return episode_rewards, episode_lengths, all_obs, all_infos
+
+
+# Function to identify navigation failures
+def id_nav_failures(model: BaseAlgorithm):
+    env = model.env.unwrapped
+    dome_radius = env.flight_dome_size
+    min_height = env.min_height
+    height_range = dome_radius - min_height
+
+    # Generate waypoints evenly spaced within the dome
+    num_waypoints = 5  # Number of waypoints to test
+    phi = np.linspace(0, 2 * np.pi, int(np.sqrt(num_waypoints)))
+    theta = np.linspace(0, np.pi, int(np.sqrt(num_waypoints)))
+
+    waypoints = []
+    for t in theta:
+        for p in phi:
+            x = dome_radius * np.sin(t) * np.cos(p)
+            y = dome_radius * np.sin(t) * np.sin(p)
+            z = min_height + height_range * np.cos(t)
+            waypoints.append((x, y, z))
+
+    waypoints = np.array(waypoints)
+
+    reached = []
+    failed = []
+
+    for waypoint in waypoints:
+        # Overwrite the model's waypoint target
+        env.waypoints.targets[0] = waypoint
+
+        # Reset environment and model
+        obs = env.reset()
+        done = False
+
+        while not done:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, _, done, info = env.step(action)
+
+        # Log if the waypoint was reached or not
+        if info.get("env_complete", False):
+            reached.append(waypoint)
+        else:
+            failed.append(waypoint)
+
+    reached = np.array(reached)
+    failed = np.array(failed)
+
+    # Plotting the results
+    fig = go.Figure()
+
+    if reached.size > 0:
+        fig.add_trace(go.Scatter3d(
+            x=reached[:, 0],
+            y=reached[:, 1],
+            z=reached[:, 2],
+            mode='markers',
+            marker=dict(size=5, color='green', opacity=0.7),
+            name='Reached'
+        ))
+
+    if failed.size > 0:
+        fig.add_trace(go.Scatter3d(
+            x=failed[:, 0],
+            y=failed[:, 1],
+            z=failed[:, 2],
+            mode='markers',
+            marker=dict(size=5, color='red', opacity=0.7),
+            name='Failed'
+        ))
+
+    fig.update_layout(
+        title="UAV Navigation Failures",
+        scene=dict(
+            xaxis_title="X Axis",
+            yaxis_title="Y Axis",
+            zaxis_title="Z Axis",
+        ),
+    )
+
+    fig.show()

@@ -183,7 +183,7 @@ def batch_tune(env_id: str, log_dir: str, values: list, num_steps: int):
                     batch_size=b_size,
                     device=device)
         model.learn(total_timesteps=num_steps, tb_log_name=f'batch_size={b_size}', callback=eval_callback)
-    print("Finished tuning entropy coefficient.")
+    print("Finished tuning batch size.")
 
 
 def gamma_tune(env_id: str, log_dir: str, value_range: list, buckets: int, num_steps: int):

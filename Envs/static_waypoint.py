@@ -97,6 +97,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             np_random=self.np_random,
         )
 
+        self.min_height = min_height*flight_dome_size
         self.goal_reach_distance = goal_reach_distance
         self.state = None
         self.xyz_limit = np.pi
@@ -133,6 +134,13 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # 5: u, v, vr, vz (local linear velocities, angular velocities, and vertical velocity)
         # 6: vx, vy, vr, vz (global linear velocities and angular velocities)
         # 7: x, y, r, z (global linear positions)
+
+        if self.flight_mode == -1:  # m1, m2, m3, m4
+            self.action_space = spaces.Box(
+                low=np.array([0.0, 0.0, 0.0, 0.0]),
+                high=np.array([self.thrust_limit, self.thrust_limit, self.thrust_limit, self.thrust_limit]),
+                dtype=np.float64,
+            )
 
         if self.flight_mode == 1:  # p, q, r, vZ
             self.action_space = spaces.Box(
@@ -215,13 +223,24 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.info["num_targets_reached"] = 0
         super().end_reset()
 
-        self.state = {
-            "azimuth_angle": np.zeros(1),
-            "elevation_angle": np.zeros(1),
-            "ang_pos": np.zeros(3),
-            "ang_vel": np.zeros(3),
-            "altitude": np.zeros(1),
-        }
+        if self.flight_mode == -1:  # m1, m2, m3, m4; the state space will also include motor thrusts
+            self.state = {
+                "azimuth_angle": np.zeros(1),
+                "elevation_angle": np.zeros(1),
+                "ang_pos": np.zeros(3),
+                "ang_vel": np.zeros(3),
+                "m_thrusts": np.zeros(4),
+                "altitude": np.zeros(1),
+            }
+
+        else:
+            self.state = {
+                "azimuth_angle": np.zeros(1),
+                "elevation_angle": np.zeros(1),
+                "ang_pos": np.zeros(3),
+                "ang_vel": np.zeros(3),
+                "altitude": np.zeros(1),
+            }
 
         self.info["waypoint"] = self.waypoints.targets[0]
         self.info["unstable"] = False
@@ -261,6 +280,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             new_state["ang_pos"] = np.array([ang_pos/np.pi])
             new_state["ang_vel"] = np.array([ang_vel/np.pi])
             new_state["altitude"] = np.array([lin_pos[2] / self.flight_dome_size])  # Normalize altitude to be in the range [0, 1]
+
+            if self.flight_mode == -1:
+                new_state["m_thrusts"] = super().compute_auxiliary()
 
             # Store non-observable states (for debugging/evaluation purposes)
             self.info["aux_state"] = super().compute_auxiliary()
