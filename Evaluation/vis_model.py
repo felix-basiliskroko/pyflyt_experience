@@ -8,6 +8,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
+import glob
+import os
+from tensorboard.backend.event_processing import event_accumulator
 from stable_baselines3.common.base_class import BaseAlgorithm
 # from stable_baselines3.common.evaluation import evaluate_policy
 from Evaluation.evaluation import evaluate_policy
@@ -459,3 +462,86 @@ def id_nav_failures(model: BaseAlgorithm):
     )
 
     fig.show()
+
+
+def analyze_tb_logs(directory):
+    # Initialize lists to store results from each log file
+    best_episode_lengths = []
+    best_frac_env_completes = []
+    steps_at_best_frac_env = []
+    normalized_rewards_per_timestep = []
+    episode_lengths_at_best_frac_env = []
+    agent_hz = 30.0
+
+    # Loop through all log files in the directory
+    for log_dir in glob.glob(os.path.join(directory, "*/")):
+        try:
+            # Load the TensorBoard logs using the EventAccumulator
+            ea = event_accumulator.EventAccumulator(log_dir)
+            ea.Reload()
+
+            # Extract "eval/mean_ep_length", "eval/frac_env_complete", and "eval/mean_reward"
+            if "eval/mean_ep_length" in ea.scalars.Keys() and "eval/frac_env_complete" in ea.scalars.Keys() and "eval/mean_reward" in ea.scalars.Keys():
+                mean_ep_length_events = ea.Scalars("eval/mean_ep_length")
+                frac_env_complete_events = ea.Scalars("eval/frac_env_complete")
+                mean_reward_events = ea.Scalars("eval/mean_reward")
+
+                # Find the max value for mean_ep_length
+                best_mean_ep_length = max(event.value for event in mean_ep_length_events)
+                best_episode_lengths.append(best_mean_ep_length / agent_hz)  # Convert to seconds
+
+                # Find the max value and corresponding step for frac_env_complete
+                best_frac_env_complete = max(frac_env_complete_events, key=lambda event: event.value)
+                best_frac_env_completes.append(best_frac_env_complete.value)
+                steps_at_best_frac_env.append(best_frac_env_complete.step)
+
+                # Find the mean_reward and mean_ep_length at the step where frac_env_complete is the best
+                step = best_frac_env_complete.step
+                mean_ep_length_at_best = next(event.value for event in mean_ep_length_events if event.step == step)
+                mean_reward_at_best = next(event.value for event in mean_reward_events if event.step == step)
+                episode_lengths_at_best_frac_env.append(mean_ep_length_at_best / agent_hz)  # Convert to seconds
+
+                # Calculate normalized reward per timestep
+                if mean_ep_length_at_best > 0:
+                    normalized_reward = mean_reward_at_best / mean_ep_length_at_best
+                    normalized_rewards_per_timestep.append(normalized_reward)
+
+        except Exception as e:
+            print(f"Error processing log file in {log_dir}: {e}")
+
+    # Calculate mean and standard deviation for all metrics
+    mean_best_ep_length = np.mean(best_episode_lengths)
+    std_best_ep_length = np.std(best_episode_lengths)
+
+    mean_best_frac_env = np.mean(best_frac_env_completes)
+    std_best_frac_env = np.std(best_frac_env_completes)
+
+    mean_steps_at_best_frac = np.mean(steps_at_best_frac_env)
+    std_steps_at_best_frac = np.std(steps_at_best_frac_env)
+
+    mean_normalized_reward = np.mean(normalized_rewards_per_timestep)
+    std_normalized_reward = np.std(normalized_rewards_per_timestep)
+
+    mean_ep_length_at_best_frac = np.mean(episode_lengths_at_best_frac_env)
+    std_ep_length_at_best_frac = np.std(episode_lengths_at_best_frac_env)
+
+    # Print results
+    print("-------------------------------")
+    print(f"Results: {directory}")
+    print(f"Average best episode length (seconds): {mean_best_ep_length:.2f} ± {std_best_ep_length:.2f}")
+    print(f"Average best frac_env_complete: {mean_best_frac_env:.2f} ± {std_best_frac_env:.2f}")
+    print(f"Average steps at best frac_env_complete: {mean_steps_at_best_frac:.2f} ± {std_steps_at_best_frac:.2f}")
+    print(f"Average episode length at best frac_env_complete (seconds): {mean_ep_length_at_best_frac:.2f} ± {std_ep_length_at_best_frac:.2f}")
+    print(f"Average normalized reward per timestep: {mean_normalized_reward:.4f} ± {std_normalized_reward:.4f}")
+    print("-------------------------------")
+
+
+root = "../logs/tensorboard_log/Final/"
+dirs = ["PPO/DefaultHyperConstantLearningRate", "PPO/TunedHyperConstantLearningRate",
+        "PPO/TunedHyperLinearLearningRate", "PPO/TunedHyperExponentialLearningRate", "PPO/TunedHyperCosineLearningRate",
+        "SAC/DefaultHyperConstantLearningRate", "SAC/TunedHyperConstantLearningRate", "SAC/TunedHyperLinearLearningRate",
+        "SAC/TunedHyperExponentialLearningRate", "SAC/TunedHyperCosineLearningRate"]
+
+for dir in dirs:
+    analyze_tb_logs(os.path.join(root, dir))
+

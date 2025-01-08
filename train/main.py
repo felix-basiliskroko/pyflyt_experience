@@ -41,7 +41,7 @@ run_sac_training(num_runs=num_runs,
                  check_root_dir=check_root_dir,
                  lr_mode="constant",
                  lr=lr,
-                 hyperparam_mode="default"
+                 hyperparam_mode="default")
 
 
 '''
