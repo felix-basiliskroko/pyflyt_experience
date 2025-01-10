@@ -1,6 +1,10 @@
+import math
+
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3 import PPO, SAC
 import gymnasium as gym
+from tqdm import tqdm
+
 from Envs.WaypointEnv import QuadXWaypoint
 from Envs import register
 import matplotlib.pyplot as plt
@@ -18,16 +22,17 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is
 from stable_baselines3.common.monitor import Monitor
 
 
-def plotly_vector_field(linear_positions, linear_velocities, target_vector, size=1, save_path=None):
+def plotly_vector_field(linear_positions, linear_velocities, target_vector, size=1, save_path=None, camera_angle=None):
     """
-    Plots the trajectory of the drone in 3D space with its corresponding velocity vectors as well as target.
+    Plots the trajectory of the drone in 3D space with its corresponding velocity vectors as well as the target.
     :param linear_positions: list of sampled linear positions
     :param linear_velocities: list of sampled linear velocities
     :param target_vector: target vector
     :param size: size of the cones, need adjustment based on the magnitude of the velocities
+    :param save_path: path to save the output (excluding extension)
+    :param camera_angle: dictionary specifying camera perspective (e.g., {"eye": {"x": 1.2, "y": 1.2, "z": 0.6}})
     """
     linear_velocity = np.concatenate((linear_positions, linear_velocities), axis=1)
-
     x, y, z, u, v, w = linear_velocity.T
 
     pl_ice = [
@@ -50,7 +55,8 @@ def plotly_vector_field(linear_positions, linear_velocities, target_vector, size
         sizemode='absolute',
         sizeref=size,
         colorbar=dict(thickness=40, ticklen=4),
-        anchor='tip'
+        anchor='tip',
+        showscale=False
     )
 
     trace2 = go.Scatter3d(
@@ -70,7 +76,7 @@ def plotly_vector_field(linear_positions, linear_velocities, target_vector, size
         height=750,
         autosize=False,
         scene=dict(
-            camera=dict(eye=dict(x=1.2, y=1.2, z=0.6)),
+            camera=camera_angle or dict(eye=dict(x=1.2, y=1.2, z=0.6)),
             xaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
             yaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
             zaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
@@ -79,10 +85,13 @@ def plotly_vector_field(linear_positions, linear_velocities, target_vector, size
     )
 
     fig = go.Figure(data=[trace1, trace2], layout=layout)
+
     if save_path:
-        fig.write_html(save_path)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.write_image(f"{save_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
+        fig.write_html(f"{save_path}.html")
+        print(f"Figure saved at {save_path}.pdf")
     else:
-        # warnings.warn("The plot can only be displayed when the function is called in a Jupyter notebook.")
         fig.show()
 
 
@@ -145,10 +154,13 @@ def plot_eval(results, average=False) -> None:
     fig.show()
 
 
-def plot_multiple_eval(results, average=False) -> None:
+def plot_multiple_eval(results, average=False, title="Results", save_path=None) -> None:
     """
     Plot the evaluation results for multiple variables using Plotly.
 
+    :param average: (bool) Whether to average the trajectories or not
+    :param save_path: (str) Path to save the figure
+    :param title: (str) Title of the plot
     :param results: (dict) The evaluation results where keys are variable names
     """
     # Generates a color map using Plotly's default sequence
@@ -174,7 +186,11 @@ def plot_multiple_eval(results, average=False) -> None:
 
     # Set layout options
     fig.update_layout(
-        title='Evaluation Results Over Time',
+        title={
+            'text': title,
+            'x': 0.5,
+            'xanchor': 'center'
+        },
         xaxis_title='Timestep',
         yaxis_title='Value',
         legend_title='Variable',
@@ -186,10 +202,15 @@ def plot_multiple_eval(results, average=False) -> None:
         height=800
     )
 
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.write_image(f"{save_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
+        print(f"Figure saved at {save_path}.pdf")
+
     fig.show()
 
 
-def plot_termination_flags(flag_data):
+def plot_termination_flags(flag_data, save_path=None):
     labels = list(flag_data.keys())
     values = list(flag_data.values())
 
@@ -211,6 +232,11 @@ def plot_termination_flags(flag_data):
         yaxis_title='Relative Frequency (%)',
         hovermode='closest'
     )
+
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig.write_image(f"{save_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
+        print(f"Figure saved at {save_path}.pdf")
 
     fig.show()
 
@@ -293,7 +319,14 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
         "num_collision": 0,
         "num_out_of_bounds": 0,
         "num_env_complete": 0,
-        "out_of_time": 0
+        "out_of_time": 0,
+    }
+
+    ep_legnths = {
+        "env_complete": [],
+        "out_of_time": [],
+        "collision": [],
+        "unstable": [],
     }
 
     for ep in res["azimuth_angle"]:
@@ -307,21 +340,38 @@ def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, incl
         res["thrust"].append([i[3] for i in ep[:-1]])
 
     for ep in res["unstable"]:
-        res["num_term_flags"]["num_unstable"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_unstable"] += 1
+            ep_legnths["unstable"].append(len(ep))
 
     for ep in res["collision"]:
-        res["num_term_flags"]["num_collision"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_collision"] += 1
+            ep_legnths["collision"].append(len(ep))
 
     for ep in res["out_of_bounds"]:
-        res["num_term_flags"]["num_out_of_bounds"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_out_of_bounds"] += 1
+            ep_legnths["out_of_time"].append(len(ep))
 
     for ep in res["env_complete"]:
-        res["num_term_flags"]["num_env_complete"] += 1 if ep[-1] else 0
+        if ep[-1]:
+            res["num_term_flags"]["num_env_complete"] += 1
+            ep_legnths["env_complete"].append(len(ep))
 
     res["num_term_flags"]["num_out_of_time"] = n_eval_episodes - (res["num_term_flags"]["num_unstable"]
                                                                   + res["num_term_flags"]["num_collision"]
                                                                   + res["num_term_flags"]["num_out_of_bounds"]
                                                                   + res["num_term_flags"]["num_env_complete"])
+
+    res["termination_lengths"] = {
+        "env_complete_mean": np.mean(ep_legnths["env_complete"]),
+        "env_complete_std": np.std(ep_legnths["env_complete"]),
+        "out_of_time_mean": np.mean(ep_legnths["out_of_time"]),
+        "out_of_time_std": np.std(ep_legnths["out_of_time"]),
+        "collision_mean": np.mean(ep_legnths["collision"]),
+        "collision_std": np.std(ep_legnths["collision"]),
+    }
 
     return res, episode_rewards, episode_lengths
 
@@ -383,53 +433,97 @@ def visualize_model(model, env, n_eval_episodes, render, verbose=True):
         return episode_rewards, episode_lengths, all_obs, all_infos
 
 
-# Function to identify navigation failures
-def id_nav_failures(model: BaseAlgorithm):
-    env = model.env.unwrapped
-    dome_radius = env.flight_dome_size
-    min_height = env.min_height
-    height_range = dome_radius - min_height
+def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
+    import os
+    import numpy as np
+    import plotly.graph_objects as go
 
-    # Generate waypoints evenly spaced within the dome
-    num_waypoints = 5  # Number of waypoints to test
-    phi = np.linspace(0, 2 * np.pi, int(np.sqrt(num_waypoints)))
-    theta = np.linspace(0, np.pi, int(np.sqrt(num_waypoints)))
+    if hasattr(model.env, 'envs'):  # Check if it's vectorized
+        env = model.env.envs[0]  # Unvectorized environment
+    elif hasattr(model.env, 'unwrapped'):  # If directly unwrapped
+        env = model.env.unwrapped
+    else:
+        raise ValueError("Environment not found")
 
-    waypoints = []
-    for t in theta:
-        for p in phi:
-            x = dome_radius * np.sin(t) * np.cos(p)
-            y = dome_radius * np.sin(t) * np.sin(p)
-            z = min_height + height_range * np.cos(t)
-            waypoints.append((x, y, z))
-
-    waypoints = np.array(waypoints)
-
+    waypoint_heights = []
     reached = []
     failed = []
+    reached_episode_lengths = []
 
-    for waypoint in waypoints:
-        # Overwrite the model's waypoint target
-        env.waypoints.targets[0] = waypoint
-
+    for e in range(num_eps):
         # Reset environment and model
-        obs = env.reset()
-        done = False
+        obs, _ = env.reset()
+        term, trunc = False, False
+        steps = 0
 
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, _, done, info = env.step(action)
+        wp = env.waypoints.targets[0]  # Get the target waypoint
+
+        while not (term or trunc):
+            action, _ = model.predict(
+                obs,  # type: ignore[arg-type]
+                deterministic=True,
+            )
+            action = action[0] if len(action) == 1 else action
+            obs, rew, term, trunc, info = env.step(action)
+            steps += 1
 
         # Log if the waypoint was reached or not
         if info.get("env_complete", False):
-            reached.append(waypoint)
+            reached.append(wp)
+            reached_episode_lengths.append(steps)
         else:
-            failed.append(waypoint)
+            failed.append(wp)
 
     reached = np.array(reached)
     failed = np.array(failed)
 
-    # Plotting the results
+    # Calculate success fraction and mean episode length
+    success_fraction = len(reached) / num_eps
+    mean_episode_length = np.mean(reached_episode_lengths)
+
+    print(f"Number of Generated Waypoints: {num_eps}")
+    print(f"Success Fraction: {success_fraction:.2f}")
+    print(f"Mean Episode Length (for successful episodes): {mean_episode_length:.2f}")
+
+    # Helper function to save and/or show plots
+    def plot_and_save_waypoints(title, waypoints, color, name, file_name):
+        fig = go.Figure()
+
+        if waypoints.size > 0:
+            fig.add_trace(go.Scatter3d(
+                x=waypoints[:, 0],
+                y=waypoints[:, 1],
+                z=waypoints[:, 2],
+                mode='markers',
+                marker=dict(size=5, color=color, opacity=0.7),
+                name=name
+            ))
+
+        fig.update_layout(
+            title={"text": title, "x": 0.5},
+            scene=dict(
+                xaxis_title="X Axis",
+                yaxis_title="Y Axis",
+                zaxis_title="Z Axis",
+            ),
+        )
+
+        if save_path is not None:
+            file_path = os.path.join(save_path, file_name)
+            fig.write_html(file_path + ".html")
+            fig.write_image(f"{file_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
+            print(f"Saved plot to {file_path}")
+
+        fig.show()
+
+    # Plot and save individual plots
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+
+    plot_and_save_waypoints(f"Waypoints Reached ({np.round(success_fraction, 2)})", reached, 'green', 'Reached', "reached_waypoints")
+    plot_and_save_waypoints(f"Waypoints Not Reached ({np.round(1 - success_fraction, 2)})", failed, 'red', 'Failed', "failed_waypoints")
+
+    # Plot and save combined plot
     fig = go.Figure()
 
     if reached.size > 0:
@@ -453,7 +547,7 @@ def id_nav_failures(model: BaseAlgorithm):
         ))
 
     fig.update_layout(
-        title="UAV Navigation Failures",
+        title={"text": f"Waypoints Reached and Not Reached (Total: {num_eps})", "x": 0.5},
         scene=dict(
             xaxis_title="X Axis",
             yaxis_title="Y Axis",
@@ -461,7 +555,14 @@ def id_nav_failures(model: BaseAlgorithm):
         ),
     )
 
+    if save_path is not None:
+        combined_path = os.path.join(save_path, "combined_waypoints.html")
+        fig.write_html(combined_path)
+        fig.write_image(f"{combined_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
+        print(f"Saved plot to {combined_path}")
+
     fig.show()
+
 
 
 def analyze_tb_logs(directory):
@@ -535,7 +636,7 @@ def analyze_tb_logs(directory):
     print(f"Average normalized reward per timestep: {mean_normalized_reward:.4f} ± {std_normalized_reward:.4f}")
     print("-------------------------------")
 
-
+'''
 root = "../logs/tensorboard_log/Final/"
 dirs = ["PPO/DefaultHyperConstantLearningRate", "PPO/TunedHyperConstantLearningRate",
         "PPO/TunedHyperLinearLearningRate", "PPO/TunedHyperExponentialLearningRate", "PPO/TunedHyperCosineLearningRate",
@@ -544,4 +645,5 @@ dirs = ["PPO/DefaultHyperConstantLearningRate", "PPO/TunedHyperConstantLearningR
 
 for dir in dirs:
     analyze_tb_logs(os.path.join(root, dir))
+'''
 

@@ -7,7 +7,7 @@ from stable_baselines3.common.env_util import make_vec_env
 import gymnasium as gym
 from Evaluation.custom_eval_callback import CustomEvalCallback
 
-from stable_baselines3 import SAC
+from stable_baselines3 import DDPG
 
 from train.scheduler.scheduling import linear_schedule, exponential_schedule, cosine_annealing_schedule
 
@@ -19,7 +19,7 @@ def run_ddpg_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kw
     elif lr_mode == "exponential":
         lr = exponential_schedule(initial_lr=lr, decay_rate=0.99)
     elif lr_mode == "cosine":
-        lr = cosine_annealing_schedule(initial_lr=lr, min_lr=3e-5)
+        lr = cosine_annealing_schedule(initial_lr=lr, min_lr=3e-4)
     elif lr_mode == "constant":
         lr = lr
     else:
@@ -37,12 +37,12 @@ def run_ddpg_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kw
             model = DDPG("MultiInputPolicy", env=vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
                          device=device)  # For non-dict observation space
         elif hyperparam_mode == "tuned":
-            model = SAC("MultiInputPolicy", env=vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
-                        batch_size=-1,
-                        buffer_size=-1,
-                        action_noise=None,
-                        learning_rate=-1,
-                        device=device)  # For non-dict observation space
+            model = DDPG("MultiInputPolicy", env=vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
+                         batch_size=128,
+                         buffer_size=1_000_000,
+                         action_noise=None,
+                         learning_rate=lr,
+                         device=device)  # For non-dict observation space
         else:
             raise ValueError(f"Invalid hyperparameter mode: {hyperparam_mode}")
 
