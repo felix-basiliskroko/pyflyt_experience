@@ -13,7 +13,7 @@ from train.scheduler.scheduling import linear_schedule, exponential_schedule, co
 
 
 def run_sac_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kwargs, run, mod, dir, check_root_dir,
-                     lr_mode, lr, hyperparam_mode):
+                     lr_mode, lr, hyperparam_mode, flight_mode):
     if lr_mode == "linear":
         lr = linear_schedule(initial_lr=lr)
     elif lr_mode == "exponential":
@@ -26,7 +26,9 @@ def run_sac_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kwa
         raise ValueError(f"Invalid learning rate mode: {lr_mode}")
 
     for r in range(num_runs):
-        vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69, env_kwargs={"reward_shift": shift, "steep_grad": 1.0})
+        vec_env = make_vec_env(env_id=env_id, n_envs=1, seed=69, env_kwargs={"reward_shift": shift,
+                                                                             "steep_grad": 1.0,
+                                                                             "flight_mode": flight_mode})
         eval_env = gym.make(env_id, reward_shift=shift, steep_grad=1.0)
         eval_callback = CustomEvalCallback(eval_env, best_model_save_path=f"./{check_root_dir}/{run}/{mod}/run_{r}",
                                            log_path=f"./{check_root_dir}/{run}/{mod}/run{r}", eval_freq=eval_freq,

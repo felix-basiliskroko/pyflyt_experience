@@ -59,4 +59,5 @@ class Reward:
         if self.flight_mode == 1:
             return np.linalg.norm(state["ang_pos"] - np.delete(action, 3))  # Smooth control reward
         else:
-            raise NotImplementedError("Flight mode other than '1' not implemented")
+            # raise NotImplementedError("Flight mode other than '1' not implemented")
+            return 0.0

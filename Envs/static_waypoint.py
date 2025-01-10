@@ -104,14 +104,27 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.thrust_limit = 0.8
 
         # Define observation space
-        self.observation_space = spaces.Dict(
-            {
-                "azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
-                "elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
-                "ang_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
-                "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
-                "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
-            })
+        if self.flight_mode == -1:  # m1, m2, m3, m4; the state space will also include motor thrusts
+            self.observation_space = spaces.Dict(
+                {
+                    "azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
+                    "elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
+                    "ang_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
+                    "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
+                    "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
+                    "m_thrusts": spaces.Box(low=0, high=self.thrust_limit, shape=(4,), dtype=np.float64),
+                })
+        elif self.flight_mode == 1:  # p, q, r, vZ
+            self.observation_space = spaces.Dict(
+                {
+                    "azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
+                    "elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
+                    "ang_pos": spaces.Box(low=-np.pi, high=np.pi, shape=(3,), dtype=np.float64),
+                    "ang_vel": spaces.Box(low=-np.pi, high=np.pi, shape=(3,), dtype=np.float64),
+                    "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
+                })
+        else:
+            raise NotImplementedError("Only flight mode 1 is supported for now.")
 
         # For Reward scaling
         smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))

@@ -27,10 +27,10 @@ dir = f'{log_root_dir}/{run}/{mod}'
 env_id = "SingleWaypointQuadXEnv-v0"
 # policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))  # For PPO
 policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], qf=[64, 64]))  # For SAC/DDPG
-lr = 7e-5
+lr = 7e-5  # DDPG
+# lr = 3e-4  # PPO
+# lr = 3e-4  # SAC
 
-mod = "TunedHyperConstantLearningRate"
-dir = f'{log_root_dir}/{run}/{mod}'
 
 run_ddpg_training(num_runs=num_runs,
                   total_steps=total_steps,
@@ -44,9 +44,10 @@ run_ddpg_training(num_runs=num_runs,
                   check_root_dir=check_root_dir,
                   lr_mode="constant",
                   lr=lr,
-                  hyperparam_mode="tuned")
+                  hyperparam_mode="default",
+                  flight_mode=-1)
 
-mod = "TunedHyperLinearLearningRate"
+mod = "MThrustTunedHyperConstantLearningRate"
 dir = f'{log_root_dir}/{run}/{mod}'
 
 run_ddpg_training(num_runs=num_runs,
@@ -61,41 +62,54 @@ run_ddpg_training(num_runs=num_runs,
                   check_root_dir=check_root_dir,
                   lr_mode="linear",
                   lr=lr,
-                  hyperparam_mode="tuned")
+                  hyperparam_mode="tuned",
+                  flight_mode=-1)
 
-mod = "TunedHyperExponentialLearningRate"
+total_steps = 800_000  # For PPO
+lr = 3e-4  # PPO
+policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))  # For PPO
+log_root_dir = "../logs/tensorboard_log/Final/PPO"
+check_root_dir = "../checkpoints/Final/PPO"
+mod = "MThrustTunedHyperConstantLearningRate"
 dir = f'{log_root_dir}/{run}/{mod}'
 
-run_ddpg_training(num_runs=num_runs,
-                  total_steps=total_steps,
-                  eval_freq=eval_freq,
-                  shift=shift,
-                  env_id=env_id,
-                  policy_kwargs=policy_kwargs,
-                  run=run,
-                  mod=mod,
-                  dir=dir,
-                  check_root_dir=check_root_dir,
-                  lr_mode="exponential",
-                  lr=lr,
-                  hyperparam_mode="tuned")
+run_ppo_training(num_runs=num_runs,
+                 total_steps=total_steps,
+                 eval_freq=eval_freq,
+                 shift=shift,
+                 env_id=env_id,
+                 policy_kwargs=policy_kwargs,
+                 run=run,
+                 mod=mod,
+                 dir=dir,
+                 check_root_dir=check_root_dir,
+                 lr_mode="constant",
+                 lr=lr,
+                 hyperparam_mode="tuned",
+                 flight_mode=-1)
 
-mod = "TunedHyperCosineLearningRate"
+total_steps = 1_000_000  # For SAC
+lr = 3e-4  # SAC
+policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))  # For SAC
+log_root_dir = "../logs/tensorboard_log/Final/SAC"
+check_root_dir = "../checkpoints/Final/SAC"
+mod = "MThrustTunedHyperConstantLearningRate"
 dir = f'{log_root_dir}/{run}/{mod}'
 
-run_ddpg_training(num_runs=num_runs,
-                  total_steps=total_steps,
-                  eval_freq=eval_freq,
-                  shift=shift,
-                  env_id=env_id,
-                  policy_kwargs=policy_kwargs,
-                  run=run,
-                  mod=mod,
-                  dir=dir,
-                  check_root_dir=check_root_dir,
-                  lr_mode="cosine",
-                  lr=lr,
-                  hyperparam_mode="tuned")
+run_sac_training(num_runs=num_runs,
+                 total_steps=total_steps,
+                 eval_freq=eval_freq,
+                 shift=shift,
+                 env_id=env_id,
+                 policy_kwargs=policy_kwargs,
+                 run=run,
+                 mod=mod,
+                 dir=dir,
+                 check_root_dir=check_root_dir,
+                 lr_mode="constant",
+                 lr=lr,
+                 hyperparam_mode="tuned",
+                 flight_mode=-1)
 
 '''
 run_ddpg_training(num_runs=num_runs,
