@@ -1,1 +1,0 @@
-successfull_trajectory.txt -> Trained with positve reward function; does not seem to be as straight as it could be

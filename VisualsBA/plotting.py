@@ -551,6 +551,6 @@ visualize_training_metrics(name_var=name_var, param_name=param_name, save_path=s
 '''
 dir = "../logs/tensorboard_log/Final/SAC"
 name = "SAC"
-save_dir = "hyperparams/sac/final_runs"
+save_dir = "angular_control/hyperparams/sac/final_runs"
 
 compare_training_configurations(name_var=name, directory=dir, save_directory=save_dir)
