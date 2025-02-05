@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from typing import Any, Literal
+
 import numpy as np
-from PyFlyt.core import Aviary
-from gymnasium import spaces
 import pybullet as p
+from PyFlyt.core import Aviary
 from PyFlyt.gym_envs.quadx_envs.quadx_base_env import QuadXBaseEnv
 from PyFlyt.gym_envs.utils.waypoint_handler import WaypointHandler
+from gymnasium import spaces
 
 from Envs.Rewards.reward import Reward
 from utils import ang
@@ -45,7 +47,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         """
 
-        self.start_height = 0.1*flight_dome_size
+        self.start_height = 0.1 * flight_dome_size
 
         super().__init__(
             start_pos=np.array([[0.0, 0.0, self.start_height]]),
@@ -66,11 +68,11 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             goal_reach_distance=goal_reach_distance,
             goal_reach_angle=goal_reach_angle,
             flight_dome_size=flight_dome_size,
-            min_height=min_height*flight_dome_size,
+            min_height=min_height * flight_dome_size,
             np_random=self.np_random,
         )
 
-        self.min_height = min_height*flight_dome_size
+        self.min_height = min_height * flight_dome_size
         self.goal_reach_distance = goal_reach_distance
         self.state = None
         self.xyz_limit = np.pi
@@ -100,7 +102,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             raise NotImplementedError("Only flight mode 1 is supported for now.")
 
         # For Reward scaling
-        smooth_max = np.linalg.norm(np.array([2*self.xyz_limit, 2*self.xyz_limit, 2*self.xyz_limit]))
+        smooth_max = np.linalg.norm(np.array([2 * self.xyz_limit, 2 * self.xyz_limit, 2 * self.xyz_limit]))
 
         self.reached_reward = 100.0
         self.crash_reward = -100.0
@@ -146,8 +148,10 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         elif self.flight_mode == "nudge":
             nudge = 0.1
             self.action_space = spaces.Box(
-                low=np.array([-nudge*self.xyz_limit, -nudge*self.xyz_limit, -nudge*self.xyz_limit, -nudge*self.thrust_limit]),
-                high=np.array([nudge*self.xyz_limit, nudge*self.xyz_limit, nudge*self.xyz_limit, nudge*self.thrust_limit]),
+                low=np.array([-nudge * self.xyz_limit, -nudge * self.xyz_limit, -nudge * self.xyz_limit,
+                              -nudge * self.thrust_limit]),
+                high=np.array([nudge * self.xyz_limit, nudge * self.xyz_limit, nudge * self.xyz_limit,
+                               nudge * self.thrust_limit]),
                 dtype=np.float64,
             )
 
@@ -178,7 +182,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.waypoints.reset(self.env, self.np_random)  # Initialize the target vector
 
         # Calculate azimuth-aligned starting orientation based on target vector
-        target_proj = self.waypoints.targets[0][:2]/np.linalg.norm(self.waypoints.targets[0][:2])
+        target_proj = self.waypoints.targets[0][:2] / np.linalg.norm(self.waypoints.targets[0][:2])
         init_yaw = ang(np.array([0.0, -1.0]), target_proj)
         self.start_orn = np.array([[0.0, 0.0, init_yaw]])
 
@@ -204,7 +208,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # Explanation for above: begin_reset() needs to be called before waypoint/target can be set. Since begin_reset()
         # sets the self.env variable with the the orientation to neutral, self.env needs to be overwritten with the
         # updated starting orientation. The orientation is set to be azimuth-aligned with the target vector.
-        #TODO Messy workaround. Find a better way to handle this. Maybe overwrite self.begin_reset()?
+        # TODO Messy workaround. Find a better way to handle this. Maybe overwrite self.begin_reset()?
 
         self.action = np.zeros(4)
         self.info["num_targets_reached"] = 0
@@ -246,8 +250,10 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             lin_vel = np.matmul(lin_vel, rotation.T)
 
             LOS = self.waypoints.targets[0] - lin_pos
-            LOS_xy_proj, LOS_xz_proj = LOS[:2]/(np.linalg.norm(LOS[:2]) + 1e-10), LOS[[0, 2]]/(np.linalg.norm(LOS[[0, 2]]) + 1e-10)
-            vel_xy_proj, vel_xz_proj = lin_vel[:2]/(np.linalg.norm(lin_vel[:2]) + 1e-10), lin_vel[[0, 2]]/(np.linalg.norm(lin_vel[[0, 2]]) + 1e-10)
+            LOS_xy_proj, LOS_xz_proj = LOS[:2] / (np.linalg.norm(LOS[:2]) + 1e-10), LOS[[0, 2]] / (
+                        np.linalg.norm(LOS[[0, 2]]) + 1e-10)
+            vel_xy_proj, vel_xz_proj = lin_vel[:2] / (np.linalg.norm(lin_vel[:2]) + 1e-10), lin_vel[[0, 2]] / (
+                        np.linalg.norm(lin_vel[[0, 2]]) + 1e-10)
 
             az_ang = ang(LOS_xy_proj, vel_xy_proj)
             el_ang = ang(LOS_xz_proj, vel_xz_proj)
@@ -256,11 +262,12 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
             new_state = dict()
             # Normalize obs to be in the range [-1, 1] (from [-pi, pi])
-            new_state["azimuth_angle"] = np.array([az_ang/np.pi])
-            new_state["elevation_angle"] = np.array([el_ang/np.pi])
-            new_state["ang_pos"] = np.array([ang_pos/np.pi])
-            new_state["ang_vel"] = np.array([ang_vel/np.pi])
-            new_state["altitude"] = np.array([lin_pos[2] / self.flight_dome_size])  # Normalize altitude to be in the range [0, 1]
+            new_state["azimuth_angle"] = np.array([az_ang / np.pi])
+            new_state["elevation_angle"] = np.array([el_ang / np.pi])
+            new_state["ang_pos"] = np.array([ang_pos / np.pi])
+            new_state["ang_vel"] = np.array([ang_vel / np.pi])
+            new_state["altitude"] = np.array(
+                [lin_pos[2] / self.flight_dome_size])  # Normalize altitude to be in the range [0, 1]
 
             if self.flight_mode == -1:
                 new_state["m_thrusts"] = super().compute_auxiliary()
@@ -299,7 +306,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self.termination |= True
 
         # unstable flight
-        if np.any(np.abs(self.state["ang_pos"]) > 0.6*np.pi):
+        if np.any(np.abs(self.state["ang_pos"]) > 0.6 * np.pi):
             self.reward = self.unstable_reward
             self.info["unstable"] = True
             self.termination |= True

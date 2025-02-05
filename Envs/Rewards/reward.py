@@ -15,6 +15,7 @@ class Reward:
     :param smooth_max: Maximum value of the smoothness reward. Used for normalization.
     :param reward_shift: Shifts the reward signal to the range [-1 + reward_shift, 0 + reward_shift]. 0 means only negative rewards and 1 means only positive rewards.
     """
+
     def __init__(self, r_LOS=None, r_smooth=None, smooth_max=None, steep_grad=1.0, flight_mode=1, reward_shift=0.0):
         self.r_LOS_weight = r_LOS
         self.r_smooth_weight = r_smooth
@@ -22,7 +23,8 @@ class Reward:
         self.flight_mode = flight_mode
         self.smooth_max = smooth_max
         self.reward_shift = reward_shift
-        print(f"Reward function initialized with r_LOS_weight: {self.r_LOS_weight}, r_smooth_weight: {self.r_smooth_weight}")
+        print(
+            f"Reward function initialized with r_LOS_weight: {self.r_LOS_weight}, r_smooth_weight: {self.r_smooth_weight}")
         print(f'Shifting reward to the range: [{-1 + reward_shift}, {0.0 + reward_shift}]')
         assert self.r_smooth_weight == 0.0, "Smooth reward is not implemented for reward shifting. Need to do that!"
         assert 0.0 <= self.reward_shift <= 1.0, f"Reward shift must be in the range [0.0, 1.0] but is {self.reward_shift}"
@@ -40,9 +42,10 @@ class Reward:
             reward_components["los_reward"] = {"unweighted": r_LOS, "weighted": weighted_r_LOS}
 
         # Smoothness reward for flying smooth trajectories
-        #TODO: Adapt to reward shift, atm not scaled to the proper range [-1, 0] but does not matter because r_smooth_weight is 0.0
+        # TODO: Adapt to reward shift, atm not scaled to the proper range [-1, 0] but does not matter because r_smooth_weight is 0.0
         if self.r_smooth_weight is not None:
-            r_smooth = -2 * (self.smooth_reward(state, action) / self.smooth_max)  # Normalize smooth reward to range -2 to 0
+            r_smooth = -2 * (
+                        self.smooth_reward(state, action) / self.smooth_max)  # Normalize smooth reward to range -2 to 0
             r_smooth += self.reward_shift  # Bring reward to positive range
             weighted_r_smooth = self.r_smooth_weight * r_smooth
             reward_signal += weighted_r_smooth  # Add weighted smooth reward
@@ -51,8 +54,8 @@ class Reward:
         return reward_signal, reward_components
 
     def los_reward(self, state):  # Normalize to range [-1, 0]
-        azimuth_reward = np.abs(0.5 * state["azimuth_angle"])**self.steep_grad
-        elevation_reward = np.abs(0.5 * state["elevation_angle"])**self.steep_grad
+        azimuth_reward = np.abs(0.5 * state["azimuth_angle"]) ** self.steep_grad
+        elevation_reward = np.abs(0.5 * state["elevation_angle"]) ** self.steep_grad
         return azimuth_reward[0] + elevation_reward[0]
 
     def smooth_reward(self, state, action):
