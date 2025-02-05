@@ -3,13 +3,13 @@ import numpy as np
 
 class Reward:
     """
-    Reward function for the quadrotor agent.
+    Reward function for the single waypoint navigation task.
     The reward function is based on the following components:
     - Line of sight reward: Reward for heading towards the target
     - Smoothness reward: Reward for flying smooth trajectories
 
-    :param r_LOS_weight: Weight determining the importance of the line of sight reward in the total reward signal.
-    :param r_smooth_weight: Weight determining the importance of the smoothness reward in the total reward signal.
+    :param r_LOS: Weight determining the importance of the line of sight reward in the total reward signal.
+    :param r_smooth: Weight determining the importance of the smoothness reward in the total reward signal.
     :param steep_grad: Steepness of the reward function. Higher values lead to steeper reward gradients.
     :param flight_mode: Flight mode of the quadrotor agent. Currently only '1' is implemented.
     :param smooth_max: Maximum value of the smoothness reward. Used for normalization.
@@ -33,13 +33,13 @@ class Reward:
 
         # Line of sight reward for heading towards the target
         if self.r_LOS_weight is not None:
-            r_LOS = -self.LOS_reward(state)
+            r_LOS = -self.los_reward(state)
             r_LOS += self.reward_shift  # Bring reward to positive range
             weighted_r_LOS = self.r_LOS_weight * r_LOS
             reward_signal += weighted_r_LOS  # Add weighted LOS reward
             reward_components["los_reward"] = {"unweighted": r_LOS, "weighted": weighted_r_LOS}
 
-        # Smoothness reward for flying smooth trajetories
+        # Smoothness reward for flying smooth trajectories
         #TODO: Adapt to reward shift, atm not scaled to the proper range [-1, 0] but does not matter because r_smooth_weight is 0.0
         if self.r_smooth_weight is not None:
             r_smooth = -2 * (self.smooth_reward(state, action) / self.smooth_max)  # Normalize smooth reward to range -2 to 0
@@ -50,7 +50,7 @@ class Reward:
 
         return reward_signal, reward_components
 
-    def LOS_reward(self, state):  # Normalize to range [-1, 0]
+    def los_reward(self, state):  # Normalize to range [-1, 0]
         azimuth_reward = np.abs(0.5 * state["azimuth_angle"])**self.steep_grad
         elevation_reward = np.abs(0.5 * state["elevation_angle"])**self.steep_grad
         return azimuth_reward[0] + elevation_reward[0]
@@ -59,5 +59,4 @@ class Reward:
         if self.flight_mode == 1:
             return np.linalg.norm(state["ang_pos"] - np.delete(action, 3))  # Smooth control reward
         else:
-            # raise NotImplementedError("Flight mode other than '1' not implemented")
-            return 0.0
+            raise NotImplementedError("Flight mode other than '1' not implemented")

@@ -1,47 +1,24 @@
 from __future__ import annotations
-
 from typing import Any, Literal
-
 import numpy as np
 from PyFlyt.core import Aviary
 from gymnasium import spaces
 import pybullet as p
-
 from PyFlyt.gym_envs.quadx_envs.quadx_base_env import QuadXBaseEnv
 from PyFlyt.gym_envs.utils.waypoint_handler import WaypointHandler
 
 from Envs.Rewards.reward import Reward
+from utils import ang
 
 
 class SingleWaypointQuadXEnv(QuadXBaseEnv):
-    """QuadX Waypoints Environment.
-
-    Actions are vp, vq, vr, T, ie: angular rates and thrust.
-    The target is a set of `[x, y, z, (optional) yaw]` waypoints in space.
-
-    Args:
-    ----
-        sparse_reward (bool): whether to use sparse rewards or not.
-        num_targets (int): number of waypoints in the environment.
-        use_yaw_targets (bool): whether to match yaw targets before a waypoint is considered reached.
-        goal_reach_distance (float): distance to the waypoints for it to be considered reached.
-        goal_reach_angle (float): angle in radians to the waypoints for it to be considered reached, only in effect if `use_yaw_targets` is used.
-        flight_mode (int): the flight mode of the UAV.
-        flight_dome_size (float): size of the allowable flying area.
-        max_duration_seconds (float): maximum simulation time of the environment.
-        angle_representation (Literal["euler", "quaternion"]): can be "euler" or "quaternion".
-        agent_hz (int): looprate of the agent to environment interaction.
-        render_mode (None | Literal["human", "rgb_array"]): render_mode
-        render_resolution (tuple[int, int]): render_resolution.
-
-    """
+    """QuadX Waypoints Environment. """
 
     def __init__(
             self,
-            num_targets: int = 1,
             use_yaw_targets: bool = False,
             goal_reach_distance: float = 1.0,
-            goal_reach_angle: float = 0.1,
+            goal_reach_angle: float = None,  # only in effect if `use_yaw_targets` is set to True
             flight_mode: int = 1,
             flight_dome_size: float = 30.0,
             max_duration_seconds: float = 10.0,
@@ -57,11 +34,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         Args:
         ----
-            sparse_reward (bool): whether to use sparse rewards or not.
-            num_targets (int): number of waypoints in the environment.
-            use_yaw_targets (bool): whether to match yaw targets before a waypoint is considered reached.
             goal_reach_distance (float): distance to the waypoints for it to be considered reached.
-            goal_reach_angle (float): angle in radians to the waypoints for it to be considered reached, only in effect if `use_yaw_targets` is used.
             flight_mode (int): the flight mode of the UAV.
             flight_dome_size (float): size of the allowable flying area.
             max_duration_seconds (float): maximum simulation time of the environment.
@@ -72,7 +45,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         """
 
-        self.start_height = 0.1*flight_dome_size  # start in the middle of the flight dome
+        self.start_height = 0.1*flight_dome_size
 
         super().__init__(
             start_pos=np.array([[0.0, 0.0, self.start_height]]),
@@ -88,7 +61,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         self.waypoints = WaypointHandler(
             enable_render=self.render_mode is not None,
-            num_targets=num_targets,
+            num_targets=1,
             use_yaw_targets=use_yaw_targets,
             goal_reach_distance=goal_reach_distance,
             goal_reach_angle=goal_reach_angle,
@@ -103,7 +76,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.xyz_limit = np.pi
         self.thrust_limit = 0.8
 
-        # Define observation space
+        # Define observation space:
         if self.flight_mode == -1:  # m1, m2, m3, m4; the state space will also include motor thrusts
             self.observation_space = spaces.Dict(
                 {
@@ -148,6 +121,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         # 6: vx, vy, vr, vz (global linear velocities and angular velocities)
         # 7: x, y, r, z (global linear positions)
 
+        # Define action space:
         if self.flight_mode == -1:  # m1, m2, m3, m4
             self.action_space = spaces.Box(
                 low=np.array([0.0, 0.0, 0.0, 0.0]),
@@ -205,7 +179,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         # Calculate azimuth-aligned starting orientation based on target vector
         target_proj = self.waypoints.targets[0][:2]/np.linalg.norm(self.waypoints.targets[0][:2])
-        init_yaw = self.ang(np.array([0.0, -1.0]), target_proj)
+        init_yaw = ang(np.array([0.0, -1.0]), target_proj)
         self.start_orn = np.array([[0.0, 0.0, init_yaw]])
 
         # Overwrite self.env with updated starting orientation (self.start_orn)
@@ -242,8 +216,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 "elevation_angle": np.zeros(1),
                 "ang_pos": np.zeros(3),
                 "ang_vel": np.zeros(3),
-                "m_thrusts": np.zeros(4),
                 "altitude": np.zeros(1),
+                "m_thrusts": np.zeros(4),
             }
 
         else:
@@ -261,12 +235,6 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         return self.state, self.info
 
-    def ang(self, v1, v2):
-        #TODO move this to utils (static method)
-        angle = np.arctan2(v2[1], v2[0]) - np.arctan2(v1[1], v1[0])
-        angle = (angle + np.pi) % (2 * np.pi) - np.pi
-        return angle
-
     def compute_state(self) -> None:
         """Computes the state for a single waypoint environment."""
 
@@ -281,8 +249,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             LOS_xy_proj, LOS_xz_proj = LOS[:2]/(np.linalg.norm(LOS[:2]) + 1e-10), LOS[[0, 2]]/(np.linalg.norm(LOS[[0, 2]]) + 1e-10)
             vel_xy_proj, vel_xz_proj = lin_vel[:2]/(np.linalg.norm(lin_vel[:2]) + 1e-10), lin_vel[[0, 2]]/(np.linalg.norm(lin_vel[[0, 2]]) + 1e-10)
 
-            az_ang = self.ang(LOS_xy_proj, vel_xy_proj)
-            el_ang = self.ang(LOS_xz_proj, vel_xz_proj)
+            az_ang = ang(LOS_xy_proj, vel_xy_proj)
+            el_ang = ang(LOS_xz_proj, vel_xz_proj)
 
             assert np.all(np.abs([az_ang, el_ang]) <= np.pi), "Angles should be in the range [-pi, pi]"
 
@@ -310,10 +278,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.state = new_state
 
     def compute_term_trunc_reward(self):
-        # los_reward = np.abs(self.state["t_azimuth_angle"] - self.state["a_azimuth_angle"]) + np.abs(self.state["t_elevation_angle"] - self.state["a_elevation_angle"])
-        # Each term (azimuth and elevation): [0, pi] -> [0, 2*pi] (where 0 means perfect alignment and pi means 180 degree misalignment)
-
-        # los_reward = np.pi - np.abs(np.abs(self.state["azimuth_angle"]) - np.pi) + np.pi - np.abs(np.abs(self.state["elevation_angle"]) - np.pi)
+        """Computes the termination, truncation, and reward for a single waypoint environment."""
         self.reward, components = self.reward_func.yield_reward(self.state, self.action)
 
         self.info["reward_components"] = {
@@ -340,10 +305,9 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             self.termination |= True
 
         # target reached
-        # if self.waypoints.target_reached:
         if self.info["distance_to_target"] < self.goal_reach_distance:
             self.reward = self.reached_reward
-            self.waypoints.advance_targets()
+            self.waypoints.advance_targets()  # Technically not needed for single waypoint
             self.truncation |= self.waypoints.all_targets_reached
             self.info["env_complete"] = self.waypoints.all_targets_reached
             self.info["num_targets_reached"] = self.waypoints.num_targets_reached
