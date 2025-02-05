@@ -1,3 +1,4 @@
+import json
 import math
 
 from stable_baselines3.common.env_util import make_vec_env
@@ -10,6 +11,7 @@ from Envs import register
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import numpy as np
 import pandas as pd
 import glob
@@ -22,69 +24,95 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is
 from stable_baselines3.common.monitor import Monitor
 
 
-def plotly_vector_field(linear_positions, linear_velocities, target_vector, size=1, save_path=None, camera_angle=None):
+def plotly_vector_field(linear_positions, linear_velocities, target_vector, size=1, save_path=None, camera_angle=None, mode='normal'):
     """
     Plots the trajectory of the drone in 3D space with its corresponding velocity vectors as well as the target.
-    :param linear_positions: list of sampled linear positions
-    :param linear_velocities: list of sampled linear velocities
+    :param linear_positions: list of sampled linear positions (nested list for 'compare' mode)
+    :param linear_velocities: list of sampled linear velocities (nested list for 'compare' mode)
     :param target_vector: target vector
-    :param size: size of the cones, need adjustment based on the magnitude of the velocities
+    :param size: size of the cones, need adjustment based on the magnitude of the velocities (list of sizes for 'compare' mode)
     :param save_path: path to save the output (excluding extension)
     :param camera_angle: dictionary specifying camera perspective (e.g., {"eye": {"x": 1.2, "y": 1.2, "z": 0.6}})
+    :param mode: 'normal' for a single trajectory or 'compare' for comparing trajectories of different algorithms
     """
-    linear_velocity = np.concatenate((linear_positions, linear_velocities), axis=1)
-    x, y, z, u, v, w = linear_velocity.T
+    traces = []
+    if mode == 'compare':
+        colors = ['rgb(255,0,0)', 'rgb(0,255,0)', 'rgb(0,0,255)']  # Red for PPO, Green for SAC, Blue for DDPG
+        labels = ['PPO', 'SAC', 'DDPG']
+        for index, (pos, vel) in enumerate(zip(linear_positions, linear_velocities)):
+            x, y, z = np.array(pos).T
+            u, v, w = np.array(vel).T
+            trace = go.Cone(
+                x=x, y=y, z=z,
+                u=u, v=v, w=w,
+                colorscale=[[0, colors[index]], [1, colors[index]]],
+                sizemode='absolute',
+                sizeref=size[index],
+                showscale=False,
+                name=labels[index]
+            )
+            traces.append(trace)
+    else:
+        linear_velocity = np.concatenate((linear_positions, linear_velocities), axis=1)
+        x, y, z, u, v, w = linear_velocity.T
+        trace = go.Cone(
+            x=x, y=y, z=z,
+            u=u, v=v, w=w,
+            colorscale='Blues',
+            sizemode='absolute',
+            sizeref=size,
+            showscale=False
+        )
+        traces.append(trace)
 
-    pl_ice = [
-        [0.0, 'rgb(3, 5, 18)'],
-        [0.11, 'rgb(27, 26, 54)'],
-        [0.22, 'rgb(48, 46, 95)'],
-        [0.33, 'rgb(60, 66, 136)'],
-        [0.44, 'rgb(62, 93, 168)'],
-        [0.56, 'rgb(66, 122, 183)'],
-        [0.67, 'rgb(82, 149, 192)'],
-        [0.78, 'rgb(106, 177, 203)'],
-        [0.89, 'rgb(140, 203, 219)'],
-        [1.0, 'rgb(188, 227, 235)']
-    ]
-
-    trace1 = go.Cone(
-        x=x, y=y, z=z,
-        u=u, v=v, w=w,
-        colorscale=pl_ice,
-        sizemode='absolute',
-        sizeref=size,
-        colorbar=dict(thickness=40, ticklen=4),
-        anchor='tip',
-        showscale=False
-    )
-
-    trace2 = go.Scatter3d(
+    trace_target = go.Scatter3d(
         x=[target_vector[0]],
         y=[target_vector[1]],
         z=[target_vector[2]],
         mode='markers',
-        marker=dict(
-            size=10,
-            color='red',
-            opacity=0.8
-        )
+        marker=dict(size=10, color='red', opacity=0.8),
+        name='Target'
     )
+    traces.append(trace_target)
 
     layout = go.Layout(
         width=900,
         height=750,
         autosize=False,
+        paper_bgcolor='rgb(255, 255, 255)',  # Ensures the surrounding paper color is white
+        plot_bgcolor='rgb(255, 255, 255)',   # Ensures the plot background color is white
         scene=dict(
             camera=camera_angle or dict(eye=dict(x=1.2, y=1.2, z=0.6)),
-            xaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
-            yaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
-            zaxis=dict(showbackground=True, backgroundcolor="rgb(235, 235, 235)", gridcolor="rgb(255, 255, 255)", zerolinecolor="rgb(255, 255, 255)"),
+            xaxis=dict(
+                showbackground=True,
+                backgroundcolor="rgb(235, 235, 235)",
+                gridcolor="rgb(255, 255, 255)",
+                zerolinecolor="rgb(255, 255, 255)",
+                title='X Axis',  # Specify the title for clarity
+                titlefont=dict(color='rgb(50, 50, 50)'),  # Dark gray color for text
+                tickfont=dict(color='rgb(50, 50, 50)')),  # Dark gray color for ticks
+            yaxis=dict(
+                showbackground=True,
+                backgroundcolor="rgb(235, 235, 235)",
+                gridcolor="rgb(255, 255, 255)",
+                zerolinecolor="rgb(255, 255, 255)",
+                title='Y Axis',
+                titlefont=dict(color='rgb(50, 50, 50)'),
+                tickfont=dict(color='rgb(50, 50, 50)')),
+            zaxis=dict(
+                showbackground=True,
+                backgroundcolor="rgb(235, 235, 235)",
+                gridcolor="rgb(255, 255, 255)",
+                zerolinecolor="rgb(255, 255, 255)",
+                title='Z Axis',
+                titlefont=dict(color='rgb(50, 50, 50)'),
+                tickfont=dict(color='rgb(50, 50, 50)')),
             aspectratio=dict(x=1, y=1, z=0.8)
-        )
+        ),
+        legend=dict(orientation='h', xanchor='center', x=0.5)
     )
 
-    fig = go.Figure(data=[trace1, trace2], layout=layout)
+    fig = go.Figure(data=traces, layout=layout)
 
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -148,7 +176,8 @@ def plot_eval(results, average=False) -> None:
         # Adjust figure size similar to matplotlib
         autosize=False,
         width=800,
-        height=600
+        height=600,
+        template='plotly_white'
     )
 
     fig.show()
@@ -199,15 +228,16 @@ def plot_multiple_eval(results, average=False, title="Results", save_path=None) 
         # Adjust figure size similar to matplotlib
         autosize=False,
         width=1000,
-        height=800
+        height=800,
+        template='plotly_white',
     )
 
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         fig.write_image(f"{save_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
         print(f"Figure saved at {save_path}.pdf")
-
-    fig.show()
+    else:
+        fig.show()
 
 
 def plot_termination_flags(flag_data, save_path=None):
@@ -230,15 +260,16 @@ def plot_termination_flags(flag_data, save_path=None):
         title='Termination Flags Distribution',
         xaxis_title='Termination Flags',
         yaxis_title='Relative Frequency (%)',
-        hovermode='closest'
+        hovermode='closest',
+        template='plotly_white',
     )
 
     if save_path:
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         fig.write_image(f"{save_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
         print(f"Figure saved at {save_path}.pdf")
-
-    fig.show()
+    else:
+        fig.show()
 
 
 def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, include_waypoints=True):
@@ -449,12 +480,14 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
     reached = []
     failed = []
     reached_episode_lengths = []
+    reached_rewards = []
 
     for e in range(num_eps):
         # Reset environment and model
         obs, _ = env.reset()
         term, trunc = False, False
         steps = 0
+        rewards = []
 
         wp = env.waypoints.targets[0]  # Get the target waypoint
 
@@ -465,12 +498,15 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
             )
             action = action[0] if len(action) == 1 else action
             obs, rew, term, trunc, info = env.step(action)
+            rewards.append(rew)
             steps += 1
 
         # Log if the waypoint was reached or not
         if info.get("env_complete", False):
             reached.append(wp)
             reached_episode_lengths.append(steps)
+            rewards.pop(-1)  # Remove the positive reward for reaching the waypoint
+            reached_rewards += rewards
         else:
             failed.append(wp)
 
@@ -484,6 +520,7 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
     print(f"Number of Generated Waypoints: {num_eps}")
     print(f"Success Fraction: {success_fraction:.2f}")
     print(f"Mean Episode Length (for successful episodes): {mean_episode_length:.2f}")
+    print(f"Mean Reward (for successful episodes): {np.mean(reached_rewards):.2f}")
 
     # Helper function to save and/or show plots
     def plot_and_save_waypoints(title, waypoints, color, name, file_name):
@@ -506,6 +543,7 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
                 yaxis_title="Y Axis",
                 zaxis_title="Z Axis",
             ),
+            template='plotly_white',
         )
 
         if save_path is not None:
@@ -513,8 +551,8 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
             fig.write_html(file_path + ".html")
             fig.write_image(f"{file_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
             print(f"Saved plot to {file_path}")
-
-        fig.show()
+        else:
+            fig.show()
 
     # Plot and save individual plots
     if save_path is not None:
@@ -553,16 +591,131 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
             yaxis_title="Y Axis",
             zaxis_title="Z Axis",
         ),
+        template='plotly_white',
     )
 
     if save_path is not None:
-        combined_path = os.path.join(save_path, "combined_waypoints.html")
-        fig.write_html(combined_path)
+        combined_path = os.path.join(save_path, "combined_waypoints")
+        fig.write_html(f'{combined_path}.html')
         fig.write_image(f"{combined_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
-        print(f"Saved plot to {combined_path}")
+        print(f"Saved plot to {combined_path}.html and {combined_path}.pdf")
+    else:
+        fig.show()
 
-    fig.show()
 
+def comp_model_performance(ppo_model, ddpg_model, sac_model, render, result_file_path):
+    if hasattr(ppo_model.env, 'envs'):  # Check if it's vectorized
+        ppo_env = ppo_model.env.envs[0]  # Unvectorized environment
+    elif hasattr(ppo_model.env, 'unwrapped'):  # If directly unwrapped
+        ppo_env = ppo_model.env.unwrapped
+    else:
+        raise ValueError(f"Environment {ppo_model.env} not found")
+
+    if hasattr(ddpg_model.env, 'envs'):  # Check if it's vectorized
+        ddpg_env = ddpg_model.env.envs[0]
+    elif hasattr(ddpg_model.env, 'unwrapped'):  # If directly unwrapped
+        ddpg_env = ddpg_model.env.unwrapped
+    else:
+        raise ValueError(f"Environment {ddpg_model.env} not found")
+
+    if hasattr(sac_model.env, 'envs'):  # Check if it's vectorized
+        sac_env = sac_model.env.envs[0]
+    elif hasattr(sac_model.env, 'unwrapped'):  # If directly unwrapped
+        sac_env = sac_model.env.unwrapped
+    else:
+        raise ValueError(f"Environment {sac_model.env} not found")
+
+    if os.path.exists(result_file_path):
+        with open(result_file_path, "r") as file:
+            result = json.load(file)
+
+    reached = 0
+
+    while True:
+        ppo_obs, _ = ppo_env.reset()
+        ddpg_obs, _ = ddpg_env.reset()
+        sac_obs, _ = sac_env.reset()
+
+        ppo_term, ppo_trunc = False, False
+        ddpg_term, ddpg_trunc = False, False
+        sac_term, sac_trunc = False, False
+
+        ddpg_linear_positions, ddpg_linear_velocities = [], []
+        ddpg_rewards, ddpg_steps = [], 0
+        ppo_linear_positions, ppo_linear_velocities = [], []
+        ppo_rewards, ppo_steps = [], 0
+        sac_linear_positions, sac_linear_velocities = [], []
+        sac_rewards, sac_steps = [], 0
+
+        wp = ppo_env.waypoints.targets[0]  # Get the target waypoint
+        sac_env.waypoints.targets[0] = wp  # Set the same waypoint for SAC
+        ddpg_env.waypoints.targets[0] = wp  # Set the same waypoint for DDPG
+
+        while not (ppo_term or ppo_trunc or sac_term or sac_trunc or ddpg_term or ddpg_trunc):
+            if not (ppo_term or ppo_trunc):
+                ppo_action, _ = ppo_model.predict(
+                    ppo_obs,  # type: ignore[arg-type]
+                    deterministic=True,
+                )
+                ppo_action = ppo_action[0] if len(ppo_action) == 1 else ppo_action
+                ppo_obs, ppo_rew, ppo_term, ppo_trunc, ppo_info = ppo_env.step(ppo_action)
+                ppo_steps += 1
+                ppo_linear_positions.append(ppo_info["linear_position"].tolist())
+                ppo_linear_velocities.append(ppo_info["linear_velocity"].tolist())
+                ppo_rewards.append(ppo_rew)
+
+            if not (ddpg_term or ddpg_trunc):
+                ddpg_action, _ = ddpg_model.predict(
+                    ddpg_obs,  # type: ignore[arg-type]
+                    deterministic=True,
+                )
+                ddpg_action = ddpg_action[0] if len(ddpg_action) == 1 else ddpg_action
+                ddpg_obs, ddpg_rew, ddpg_term, ddpg_trunc, ddpg_info = ddpg_env.step(ddpg_action)
+                ddpg_steps += 1
+                ddpg_linear_positions.append(ddpg_info["linear_position"])
+                ddpg_linear_velocities.append(ddpg_info["linear_velocity"])
+                ddpg_rewards.append(ddpg_rew)
+
+            if not (sac_term or sac_trunc):
+                sac_action, _ = sac_model.predict(
+                    sac_obs,  # type: ignore[arg-type]
+                    deterministic=True,
+                )
+                sac_action = sac_action[0] if len(sac_action) == 1 else sac_action
+                sac_obs, sac_rew, sac_term, sac_trunc, sac_info = sac_env.step(sac_action)
+                sac_steps += 1
+                sac_linear_positions.append(sac_info["linear_position"].tolist())
+                sac_linear_velocities.append(sac_info["linear_velocity"].tolist())
+                sac_rewards.append(sac_rew)
+
+        # Log if the waypoint was reached for all models
+        if ppo_info.get("env_complete", False) and sac_info.get("env_complete", False):  # and ddpg_info.get("env_complete", False):
+            result["ppo"]["linear_position"].append(ppo_linear_positions)
+            result["ppo"]["linear_velocity"].append(ppo_linear_velocities)
+            # result["ddpg"]["linear_position"].append(ddpg_linear_positions)
+            # result["ddpg"]["linear_velocity"].append(ddpg_linear_velocities)
+            result["sac"]["linear_position"].append(sac_linear_positions)
+            result["sac"]["linear_velocity"].append(sac_linear_velocities)
+
+            result["ppo"]["mean_rewards"].append(np.mean(ppo_rewards))
+            result["ppo"]["ep_len_s"].append(ppo_steps/30.0)  # Convert to seconds
+            # result["ddpg"]["mean_rewards"].append(np.mean(ddpg_rewards))
+            # result["ddpg"]["ep_len_s"].append(ddpg_steps/30.0)
+            result["sac"]["mean_rewards"].append(np.mean(sac_rewards))
+            result["sac"]["ep_len_s"].append(sac_steps/30.0)
+
+            result["targets"].append(wp.tolist())
+
+            with open(result_file_path, "w") as f:
+                json.dump(result, f, indent=4)  # Using indent for better readability
+
+            print(f"-------------Reached: {reached + 1}")
+            reached += 1
+        else:
+            print("Waypoint not reached")
+            print(f"PPO: {ppo_info.get('env_complete', False)}")
+            print(f"DDPG: {ddpg_info.get('env_complete', False)}")
+            print(f"SAC: {sac_info.get('env_complete', False)}")
 
 
 def analyze_tb_logs(directory):
@@ -610,6 +763,93 @@ def analyze_tb_logs(directory):
         except Exception as e:
             print(f"Error processing log file in {log_dir}: {e}")
 
+
+def generate_random_term_flags(number_of_eps):
+    """Generates a term_flags dictionary with random values for exemplary purposes."""
+    term_flags = {
+        algo: {
+            "collision": np.random.randint(0, number_of_eps),
+            "out_of_bounds": np.random.randint(0, number_of_eps),
+            "unstable": np.random.randint(0, number_of_eps),
+            "env_complete": np.random.randint(0, number_of_eps),
+            "rewards": [],
+            "num_steps": [],
+        }
+        for algo in ["sac_angular", "sac_thrust", "ppo_angular", "ppo_thrust", "ddpg_angular", "ddpg_thrust"]
+    }
+    return term_flags
+
+def plot_flags(number_of_eps, term_flags, save_path=None):
+    """Creates two horizontal bar charts using Plotly to visualize termination flags."""
+
+    pio.kaleido.scope.mathjax = None  # Disable MathJax rendering in Kaleido
+
+    # Normalizing values
+    normalized_flags = {
+        algo: {flag: count / number_of_eps for flag, count in data.items() if isinstance(count, int)}
+        for algo, data in term_flags.items()
+    }
+
+    # Separating thrust-based and angular-based algorithms
+    thrust_algos = ["sac_thrust", "ppo_thrust", "ddpg_thrust"]
+    angular_algos = ["sac_angular", "ppo_angular", "ddpg_angular"]
+
+    thrust_data = {flag: {} for flag in ["collision", "out_of_bounds", "unstable", "env_complete"]}
+    angular_data = {flag: {} for flag in ["collision", "out_of_bounds", "unstable", "env_complete"]}
+
+    for algo, data in normalized_flags.items():
+        algo_name = algo.split("_")[0]  # Remove suffix (_angular or _thrust)
+        for flag in data.keys():
+            if algo in thrust_algos:
+                thrust_data[flag][algo_name] = data[flag]
+            else:
+                angular_data[flag][algo_name] = data[flag]
+
+    # Create plots
+    def create_bar_chart(data, title):
+        fig = go.Figure()
+        for algo_name in set(algo.split("_")[0] for algo in term_flags.keys()):
+            y_values = list(data.keys())
+            x_values = [data[flag].get(algo_name, 0) for flag in y_values]
+            fig.add_trace(go.Bar(y=y_values, x=x_values, name=algo_name, orientation="h", marker=dict(line=dict(width=1)), width=0.2))
+
+        fig.update_layout(
+            template="plotly_white",
+            title=dict(text=title, x=0.5),
+            yaxis_title="Termination Flags",
+            xaxis_title="Normalized Frequency",
+            barmode="group",
+            xaxis=dict(
+                showgrid=True,
+                gridcolor="gray",
+                gridwidth=1.2,
+                dtick=0.05,  # Major gridlines every 0.05
+                tickvals=[i / 10 for i in range(12)],  # Only display ticks at 0.0, 0.1, ..., 1.1
+                range=[0, 1.01],  # Ensures the axis always ends at 1.1
+                minor=dict(
+                    showgrid=True,
+                    gridcolor="lightgray",
+                    gridwidth=0.5,
+                    dtick=0.01  # Minor gridlines every 0.01
+                )
+            ),
+            yaxis=dict(categoryorder='total ascending', tickmode="array", tickvals=list(range(len(data))), ticktext=list(data.keys()), dtick=1)
+        )
+        return fig
+
+    fig_thrust = create_bar_chart(thrust_data, "Termination Flags: Thrust Control")
+    fig_angular = create_bar_chart(angular_data, "Termination Flags: Angular Control")
+
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        fig_thrust.write_image(f"{save_path}term_flags_thrust.pdf", height=800, width=1200, scale=2, engine="kaleido")
+        fig_angular.write_image(f"{save_path}term_flags_angular.pdf", height=800, width=1200, scale=2, engine="kaleido")
+        print(f"Figures saved at {save_path}term_flags_thrust.pdf and {save_path}term_flags_angular.pdf")
+
+    return fig_thrust, fig_angular
+
+
+'''
     # Calculate mean and standard deviation for all metrics
     mean_best_ep_length = np.mean(best_episode_lengths)
     std_best_ep_length = np.std(best_episode_lengths)
@@ -636,7 +876,7 @@ def analyze_tb_logs(directory):
     print(f"Average normalized reward per timestep: {mean_normalized_reward:.4f} ± {std_normalized_reward:.4f}")
     print("-------------------------------")
 
-'''
+
 root = "../logs/tensorboard_log/Final/"
 dirs = ["PPO/DefaultHyperConstantLearningRate", "PPO/TunedHyperConstantLearningRate",
         "PPO/TunedHyperLinearLearningRate", "PPO/TunedHyperExponentialLearningRate", "PPO/TunedHyperCosineLearningRate",

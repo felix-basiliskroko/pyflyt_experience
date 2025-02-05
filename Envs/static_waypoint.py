@@ -119,8 +119,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
                 {
                     "azimuth_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
                     "elevation_angle": spaces.Box(low=-np.pi, high=np.pi, shape=(1,), dtype=np.float64),
-                    "ang_pos": spaces.Box(low=-np.pi, high=np.pi, shape=(3,), dtype=np.float64),
-                    "ang_vel": spaces.Box(low=-np.pi, high=np.pi, shape=(3,), dtype=np.float64),
+                    "ang_pos": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
+                    "ang_vel": spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64),
                     "altitude": spaces.Box(low=0, high=np.inf, shape=(1,), dtype=np.float64),
                 })
         else:

@@ -6,7 +6,7 @@ from train_sac import run_sac_training
 from train_ddpg import run_ddpg_training
 
 # Logdir
-num_runs = 3
+num_runs = 1
 total_steps = 800_000
 eval_freq = 20_000
 shift = 0.75
@@ -31,7 +31,7 @@ lr = 7e-5  # DDPG
 # lr = 3e-4  # PPO
 # lr = 3e-4  # SAC
 
-
+'''
 run_ddpg_training(num_runs=num_runs,
                   total_steps=total_steps,
                   eval_freq=eval_freq,
@@ -45,7 +45,7 @@ run_ddpg_training(num_runs=num_runs,
                   lr_mode="constant",
                   lr=lr,
                   hyperparam_mode="default",
-                  flight_mode=-1)
+                  flight_mode=1)
 
 mod = "MThrustTunedHyperConstantLearningRate"
 dir = f'{log_root_dir}/{run}/{mod}'
@@ -60,7 +60,7 @@ run_ddpg_training(num_runs=num_runs,
                   mod=mod,
                   dir=dir,
                   check_root_dir=check_root_dir,
-                  lr_mode="linear",
+                  lr_mode="constant",
                   lr=lr,
                   hyperparam_mode="tuned",
                   flight_mode=-1)
@@ -87,10 +87,11 @@ run_ppo_training(num_runs=num_runs,
                  lr=lr,
                  hyperparam_mode="tuned",
                  flight_mode=-1)
+'''
 
 total_steps = 1_000_000  # For SAC
 lr = 3e-4  # SAC
-policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], vf=[64, 64]))  # For SAC
+policy_kwargs = dict(activation_fn=t.nn.Tanh, net_arch=dict(pi=[64, 64], qf=[64, 64]))  # For SAC
 log_root_dir = "../logs/tensorboard_log/Final/SAC"
 check_root_dir = "../checkpoints/Final/SAC"
 mod = "MThrustTunedHyperConstantLearningRate"
