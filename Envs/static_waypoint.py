@@ -10,7 +10,7 @@ from PyFlyt.gym_envs.utils.waypoint_handler import WaypointHandler
 from gymnasium import spaces
 
 from Envs.Rewards.reward import Reward
-from utils import ang
+from Envs.utils import ang
 
 
 class SingleWaypointQuadXEnv(QuadXBaseEnv):

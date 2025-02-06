@@ -7,6 +7,12 @@ import os
 
 
 class CustomEvalCallback(EvalCallback):
+    """
+    Custom evaluation callback for the single waypoint navigation task
+    . Expands the EvalCallback from stable-baselines3 to include the fraction
+    of environments that reached the target to be displayed in the tensorboard
+     logs.
+    """
     def __init__(self, eval_env, best_model_save_path, log_path, eval_freq, deterministic=True, render=False,
                  n_eval_episodes=5, verbose=0):
         super(CustomEvalCallback, self).__init__(eval_env=eval_env,

@@ -1,27 +1,14 @@
 import json
-import math
-
-from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3 import PPO, SAC
-import gymnasium as gym
-from tqdm import tqdm
-
-from Envs.WaypointEnv import QuadXWaypoint
-from Envs import register
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.io as pio
 import numpy as np
 import pandas as pd
 import glob
 import os
 from tensorboard.backend.event_processing import event_accumulator
 from stable_baselines3.common.base_class import BaseAlgorithm
-# from stable_baselines3.common.evaluation import evaluate_policy
+
 from Evaluation.evaluation import evaluate_policy
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecMonitor, is_vecenv_wrapped
-from stable_baselines3.common.monitor import Monitor
 
 
 def plotly_vector_field(linear_positions, linear_velocities, target_vector, size=1, save_path=None, camera_angle=None, mode='normal'):
@@ -240,38 +227,6 @@ def plot_multiple_eval(results, average=False, title="Results", save_path=None) 
         fig.show()
 
 
-def plot_termination_flags(flag_data, save_path=None):
-    labels = list(flag_data.keys())
-    values = list(flag_data.values())
-
-    total = sum(values)
-    relative_frequencies = [(value / total) * 100 for value in values]
-
-    # Create a plot
-    fig = go.Figure(data=[go.Bar(
-        x=labels,
-        y=relative_frequencies,
-        text=values,
-        hoverinfo='text+y',
-        textposition='auto',
-    )])
-
-    fig.update_layout(
-        title='Termination Flags Distribution',
-        xaxis_title='Termination Flags',
-        yaxis_title='Relative Frequency (%)',
-        hovermode='closest',
-        template='plotly_white',
-    )
-
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        fig.write_image(f"{save_path}.pdf", height=800, width=1200, scale=2, engine="kaleido")
-        print(f"Figure saved at {save_path}.pdf")
-    else:
-        fig.show()
-
-
 def aggregate_eval(model, env, n_eval_episodes, render, deterministic=True, include_waypoints=True):
     """
     Evaluate the model on the environment for a given number of episodes and aggregate the values of a given variable.
@@ -464,7 +419,7 @@ def visualize_model(model, env, n_eval_episodes, render, verbose=True):
         return episode_rewards, episode_lengths, all_obs, all_infos
 
 
-def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
+def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> tuple:
     import os
     import numpy as np
     import plotly.graph_objects as go
@@ -475,6 +430,13 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
         env = model.env.unwrapped
     else:
         raise ValueError("Environment not found")
+
+    term_flags = {
+        "collision": 0,
+        "out_of_bounds": 0,
+        "unstable": 0,
+        "env_complete": 0,
+    }
 
     waypoint_heights = []
     reached = []
@@ -501,11 +463,16 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
             rewards.append(rew)
             steps += 1
 
+        term_flags["collision"] += 1 if info["collision"] else 0
+        term_flags["out_of_bounds"] += 1 if info["out_of_bounds"] else 0
+        term_flags["unstable"] += 1 if info["unstable"] else 0
+        term_flags["env_complete"] += 1 if info.get("env_complete", False) else 0
+
         # Log if the waypoint was reached or not
         if info.get("env_complete", False):
             reached.append(wp)
             reached_episode_lengths.append(steps)
-            rewards.pop(-1)  # Remove the positive reward for reaching the waypoint
+            rewards.pop(-1)  # Remove the highly positive reward for reaching the waypoint
             reached_rewards += rewards
         else:
             failed.append(wp)
@@ -513,14 +480,14 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
     reached = np.array(reached)
     failed = np.array(failed)
 
-    # Calculate success fraction and mean episode length
+    # Calculate  success fraction and mean episode length
     success_fraction = len(reached) / num_eps
     mean_episode_length = np.mean(reached_episode_lengths)
 
-    print(f"Number of Generated Waypoints: {num_eps}")
-    print(f"Success Fraction: {success_fraction:.2f}")
-    print(f"Mean Episode Length (for successful episodes): {mean_episode_length:.2f}")
-    print(f"Mean Reward (for successful episodes): {np.mean(reached_rewards):.2f}")
+    # print(f"Number of Generated Waypoints: {num_eps}")
+    # print(f"Success Fraction: {success_fraction:.2f}")
+    # print(f"Mean Episode Length (for successful episodes): {mean_episode_length:.2f}")
+    # print(f"Mean Reward (for successful episodes): {np.mean(reached_rewards):.2f}")
 
     # Helper function to save and/or show plots
     def plot_and_save_waypoints(title, waypoints, color, name, file_name):
@@ -602,8 +569,24 @@ def id_nav_failures(model: BaseAlgorithm, num_eps, save_path=None) -> None:
     else:
         fig.show()
 
+    # Normalise the termination flags to get relative frequencies
+    for k in term_flags:
+        term_flags[k] /= num_eps
 
-def comp_model_performance(ppo_model, ddpg_model, sac_model, render, result_file_path):
+    return term_flags, mean_episode_length, np.mean(reached_rewards)
+
+
+def comp_model_performance(ppo_model, sac_model, render, result_file_path, ddpg_model=None):
+    """
+    Compare the performance of the three models on the same environment.
+    :param ppo_model: Trained PPO model
+    :param ddpg_model: Trained DDPG model
+    :param sac_model: Trained SAC model
+    :param render: Render the environment
+    :param result_file_path: Location to save the results
+    :return: None
+    """
+
     if hasattr(ppo_model.env, 'envs'):  # Check if it's vectorized
         ppo_env = ppo_model.env.envs[0]  # Unvectorized environment
     elif hasattr(ppo_model.env, 'unwrapped'):  # If directly unwrapped
@@ -724,7 +707,7 @@ def analyze_tb_logs(directory):
     best_frac_env_completes = []
     steps_at_best_frac_env = []
     normalized_rewards_per_timestep = []
-    episode_lengths_at_best_frac_env = []
+    all_episode_lengths = []  # Store all mean episode lengths
     agent_hz = 30.0
 
     # Loop through all log files in the directory
@@ -740,6 +723,9 @@ def analyze_tb_logs(directory):
                 frac_env_complete_events = ea.Scalars("eval/frac_env_complete")
                 mean_reward_events = ea.Scalars("eval/mean_reward")
 
+                # Store all episode lengths (converted to seconds)
+                all_episode_lengths.extend([event.value / agent_hz for event in mean_ep_length_events])
+
                 # Find the max value for mean_ep_length
                 best_mean_ep_length = max(event.value for event in mean_ep_length_events)
                 best_episode_lengths.append(best_mean_ep_length / agent_hz)  # Convert to seconds
@@ -749,13 +735,12 @@ def analyze_tb_logs(directory):
                 best_frac_env_completes.append(best_frac_env_complete.value)
                 steps_at_best_frac_env.append(best_frac_env_complete.step)
 
-                # Find the mean_reward and mean_ep_length at the step where frac_env_complete is the best
+                # Find the mean_reward at the step where frac_env_complete is the best
                 step = best_frac_env_complete.step
-                mean_ep_length_at_best = next(event.value for event in mean_ep_length_events if event.step == step)
                 mean_reward_at_best = next(event.value for event in mean_reward_events if event.step == step)
-                episode_lengths_at_best_frac_env.append(mean_ep_length_at_best / agent_hz)  # Convert to seconds
 
                 # Calculate normalized reward per timestep
+                mean_ep_length_at_best = next(event.value for event in mean_ep_length_events if event.step == step)
                 if mean_ep_length_at_best > 0:
                     normalized_reward = mean_reward_at_best / mean_ep_length_at_best
                     normalized_rewards_per_timestep.append(normalized_reward)
@@ -763,55 +748,46 @@ def analyze_tb_logs(directory):
         except Exception as e:
             print(f"Error processing log file in {log_dir}: {e}")
 
+    # Calculate mean and standard deviation for all metrics
+    mean_all_ep_length = np.mean(all_episode_lengths) if all_episode_lengths else 0
+    std_all_ep_length = np.std(all_episode_lengths) if all_episode_lengths else 0
 
-def generate_random_term_flags(number_of_eps):
-    """Generates a term_flags dictionary with random values for exemplary purposes."""
-    term_flags = {
-        algo: {
-            "collision": np.random.randint(0, number_of_eps),
-            "out_of_bounds": np.random.randint(0, number_of_eps),
-            "unstable": np.random.randint(0, number_of_eps),
-            "env_complete": np.random.randint(0, number_of_eps),
-            "rewards": [],
-            "num_steps": [],
-        }
-        for algo in ["sac_angular", "sac_thrust", "ppo_angular", "ppo_thrust", "ddpg_angular", "ddpg_thrust"]
-    }
-    return term_flags
+    mean_best_frac_env = np.mean(best_frac_env_completes) if best_frac_env_completes else 0
+    std_best_frac_env = np.std(best_frac_env_completes) if best_frac_env_completes else 0
 
-def plot_flags(number_of_eps, term_flags, save_path=None):
+    mean_steps_at_best_frac = np.mean(steps_at_best_frac_env) if steps_at_best_frac_env else 0
+    std_steps_at_best_frac = np.std(steps_at_best_frac_env) if steps_at_best_frac_env else 0
+
+    mean_normalized_reward = np.mean(normalized_rewards_per_timestep) if normalized_rewards_per_timestep else 0
+    std_normalized_reward = np.std(normalized_rewards_per_timestep) if normalized_rewards_per_timestep else 0
+
+    config, algo_name = directory.split("/")[-1], directory.split("/")[-2]
+
+    # Print results
+    print("-------------------------------")
+    print(f"Results: {algo_name} - {config}")
+    print(f"Average episode length (seconds): {mean_all_ep_length:.2f} ± {std_all_ep_length:.2f}")  # Updated line
+    print(f"Average best frac_env_complete: {mean_best_frac_env:.2f} ± {std_best_frac_env:.2f}")
+    print(f"Average steps at best frac_env_complete: {mean_steps_at_best_frac:.2f} ± {std_steps_at_best_frac:.2f}")
+    print(f"Average normalized reward per timestep: {mean_normalized_reward:.4f} ± {std_normalized_reward:.4f}")
+    print("-------------------------------")
+
+
+def plot_flags(term_flags, save_path_angular=None, save_path_thrust=None):
     """Creates two horizontal bar charts using Plotly to visualize termination flags."""
 
-    pio.kaleido.scope.mathjax = None  # Disable MathJax rendering in Kaleido
-
-    # Normalizing values
-    normalized_flags = {
-        algo: {flag: count / number_of_eps for flag, count in data.items() if isinstance(count, int)}
-        for algo, data in term_flags.items()
-    }
-
-    # Separating thrust-based and angular-based algorithms
     thrust_algos = ["sac_thrust", "ppo_thrust", "ddpg_thrust"]
     angular_algos = ["sac_angular", "ppo_angular", "ddpg_angular"]
 
-    thrust_data = {flag: {} for flag in ["collision", "out_of_bounds", "unstable", "env_complete"]}
-    angular_data = {flag: {} for flag in ["collision", "out_of_bounds", "unstable", "env_complete"]}
+    thrust_data = {algo.split('_')[0].upper(): [term_flags[algo][flag] for flag in ["collision", "out_of_bounds", "unstable", "env_complete"]] for algo in thrust_algos}
+    angular_data = {algo.split('_')[0].upper(): [term_flags[algo][flag] for flag in ["collision", "out_of_bounds", "unstable", "env_complete"]] for algo in angular_algos}
 
-    for algo, data in normalized_flags.items():
-        algo_name = algo.split("_")[0]  # Remove suffix (_angular or _thrust)
-        for flag in data.keys():
-            if algo in thrust_algos:
-                thrust_data[flag][algo_name] = data[flag]
-            else:
-                angular_data[flag][algo_name] = data[flag]
+    labels = ["collision", "out_of_bounds", "unstable", "env_complete"]
 
-    # Create plots
     def create_bar_chart(data, title):
         fig = go.Figure()
-        for algo_name in set(algo.split("_")[0] for algo in term_flags.keys()):
-            y_values = list(data.keys())
-            x_values = [data[flag].get(algo_name, 0) for flag in y_values]
-            fig.add_trace(go.Bar(y=y_values, x=x_values, name=algo_name, orientation="h", marker=dict(line=dict(width=1)), width=0.2))
+        for algo, values in data.items():
+            fig.add_trace(go.Bar(y=labels, x=values, name=algo, orientation="h", width=0.2))
 
         fig.update_layout(
             template="plotly_white",
@@ -825,7 +801,7 @@ def plot_flags(number_of_eps, term_flags, save_path=None):
                 gridwidth=1.2,
                 dtick=0.05,  # Major gridlines every 0.05
                 tickvals=[i / 10 for i in range(12)],  # Only display ticks at 0.0, 0.1, ..., 1.1
-                range=[0, 1.01],  # Ensures the axis always ends at 1.1
+                range=[0, 1.01],  # Ensures the axis always ends at 1.01
                 minor=dict(
                     showgrid=True,
                     gridcolor="lightgray",
@@ -833,57 +809,20 @@ def plot_flags(number_of_eps, term_flags, save_path=None):
                     dtick=0.01  # Minor gridlines every 0.01
                 )
             ),
-            yaxis=dict(categoryorder='total ascending', tickmode="array", tickvals=list(range(len(data))), ticktext=list(data.keys()), dtick=1)
         )
         return fig
 
     fig_thrust = create_bar_chart(thrust_data, "Termination Flags: Thrust Control")
     fig_angular = create_bar_chart(angular_data, "Termination Flags: Angular Control")
 
-    if save_path:
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        fig_thrust.write_image(f"{save_path}term_flags_thrust.pdf", height=800, width=1200, scale=2, engine="kaleido")
-        fig_angular.write_image(f"{save_path}term_flags_angular.pdf", height=800, width=1200, scale=2, engine="kaleido")
-        print(f"Figures saved at {save_path}term_flags_thrust.pdf and {save_path}term_flags_angular.pdf")
+    if save_path_angular:
+        os.makedirs(os.path.dirname(save_path_angular), exist_ok=True)
+        fig_angular.write_image(f"{save_path_angular}term_flags_angular.pdf", height=800, width=1200, scale=2)
+        print(f"Figures saved at {save_path_angular}term_flags_angular.pdf")
+
+    if save_path_thrust:
+        os.makedirs(os.path.dirname(save_path_thrust), exist_ok=True)
+        fig_thrust.write_image(f"{save_path_thrust}term_flags_thrust.pdf", height=800, width=1200, scale=2)
+        print(f"Figures saved at {save_path_thrust}term_flags_thrust.pdf")
 
     return fig_thrust, fig_angular
-
-
-'''
-    # Calculate mean and standard deviation for all metrics
-    mean_best_ep_length = np.mean(best_episode_lengths)
-    std_best_ep_length = np.std(best_episode_lengths)
-
-    mean_best_frac_env = np.mean(best_frac_env_completes)
-    std_best_frac_env = np.std(best_frac_env_completes)
-
-    mean_steps_at_best_frac = np.mean(steps_at_best_frac_env)
-    std_steps_at_best_frac = np.std(steps_at_best_frac_env)
-
-    mean_normalized_reward = np.mean(normalized_rewards_per_timestep)
-    std_normalized_reward = np.std(normalized_rewards_per_timestep)
-
-    mean_ep_length_at_best_frac = np.mean(episode_lengths_at_best_frac_env)
-    std_ep_length_at_best_frac = np.std(episode_lengths_at_best_frac_env)
-
-    # Print results
-    print("-------------------------------")
-    print(f"Results: {directory}")
-    print(f"Average best episode length (seconds): {mean_best_ep_length:.2f} ± {std_best_ep_length:.2f}")
-    print(f"Average best frac_env_complete: {mean_best_frac_env:.2f} ± {std_best_frac_env:.2f}")
-    print(f"Average steps at best frac_env_complete: {mean_steps_at_best_frac:.2f} ± {std_steps_at_best_frac:.2f}")
-    print(f"Average episode length at best frac_env_complete (seconds): {mean_ep_length_at_best_frac:.2f} ± {std_ep_length_at_best_frac:.2f}")
-    print(f"Average normalized reward per timestep: {mean_normalized_reward:.4f} ± {std_normalized_reward:.4f}")
-    print("-------------------------------")
-
-
-root = "../logs/tensorboard_log/Final/"
-dirs = ["PPO/DefaultHyperConstantLearningRate", "PPO/TunedHyperConstantLearningRate",
-        "PPO/TunedHyperLinearLearningRate", "PPO/TunedHyperExponentialLearningRate", "PPO/TunedHyperCosineLearningRate",
-        "SAC/DefaultHyperConstantLearningRate", "SAC/TunedHyperConstantLearningRate", "SAC/TunedHyperLinearLearningRate",
-        "SAC/TunedHyperExponentialLearningRate", "SAC/TunedHyperCosineLearningRate"]
-
-for dir in dirs:
-    analyze_tb_logs(os.path.join(root, dir))
-'''
-
