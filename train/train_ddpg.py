@@ -1,15 +1,15 @@
-from stable_baselines3 import DDPG
-from Envs import register
-import numpy as np
+import os
+import sys
 import torch as t
-from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.env_util import make_vec_env
 import gymnasium as gym
-from Evaluation.custom_eval_callback import CustomEvalCallback
-
 from stable_baselines3 import DDPG
 
+from Evaluation.custom_eval_callback import CustomEvalCallback
 from train.scheduler.scheduling import linear_schedule, exponential_schedule, cosine_annealing_schedule
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(project_root)
+import Envs.register
 
 
 def run_ddpg_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kwargs, run, mod, dir, check_root_dir,
@@ -34,10 +34,10 @@ def run_ddpg_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kw
         device = "cuda" if t.cuda.is_available() else "cpu"
 
         if hyperparam_mode == "default":
-            model = DDPG("MultiInputPolicy", env=vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
+            model = DDPG("MultiInputPolicy", env=vec_env, verbose=0, tensorboard_log=f'{dir}/{run}/{mod}', policy_kwargs=policy_kwargs,
                          device=device)  # For non-dict observation space
         elif hyperparam_mode == "tuned":
-            model = DDPG("MultiInputPolicy", env=vec_env, verbose=0, tensorboard_log=dir, policy_kwargs=policy_kwargs,
+            model = DDPG("MultiInputPolicy", env=vec_env, verbose=0, tensorboard_log=f'{dir}/{run}/{mod}', policy_kwargs=policy_kwargs,
                          batch_size=128,
                          buffer_size=1_000_000,
                          action_noise=None,

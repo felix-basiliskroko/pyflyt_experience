@@ -1,19 +1,15 @@
-import datetime
 import torch as t
 import gymnasium as gym
-from gymnasium.wrappers import RecordVideo
-import PyFlyt.gym_envs
-from stable_baselines3.common.vec_env import VecVideoRecorder
-
-import Envs.register
+import os
+import sys
 from scheduler.scheduling import linear_schedule, exponential_schedule, cosine_annealing_schedule
-
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env.vec_normalize import VecNormalize
-from stable_baselines3.common.env_util import make_vec_env
-from custom_callbacks import StabilityEvalCallback
+
 from Evaluation.custom_eval_callback import CustomEvalCallback
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(project_root)
+import Envs.register
 
 
 def run_ppo_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kwargs, run, mod, dir, check_root_dir,
@@ -40,10 +36,10 @@ def run_ppo_training(num_runs, total_steps, eval_freq, shift, env_id, policy_kwa
         device = "cuda" if t.cuda.is_available() else "cpu"
 
         if hyperparam_mode == "default":
-            model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=f'{dir}', policy_kwargs=policy_kwargs,
+            model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=f'{dir}/{run}/{mod}', policy_kwargs=policy_kwargs,
                         device=device)
         elif hyperparam_mode == "tuned":
-            model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=f'{dir}', policy_kwargs=policy_kwargs,
+            model = PPO("MultiInputPolicy", vec_env, verbose=0, tensorboard_log=f'{dir}/{run}/{mod}', policy_kwargs=policy_kwargs,
                         batch_size=256,
                         ent_coef=0.009,
                         gamma=0.975,
