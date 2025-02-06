@@ -1,4 +1,4 @@
-# PyFlyt Experience - Debug Convergence Branch
+# RLNav - Reinforcement Learning for UAV Waypoint Navigation
 
 *A Reinforcement Learning Approach for UAV Waypoint Navigation*
 
@@ -24,61 +24,80 @@ The objective of this project is to apply **Proximal Policy Optimization (PPO)**
 
 ```
 pyflyt_experience/
+ ├── checkpoints/          # Contains the model checkpoints saved during training
+ ├── docs/          # Contains my finalised bachelor thesis
  ├── Envs/     # Contains the custom PyFlyt Gymnasium environment and Reward function
  ├── Evaluation/     # Contains scripts and notebooks for evaluation of the trained models
  ├── VisualsBA/           # Contains the scripts and plots for the visualizations of the results (used in my thesis)
- ├── checkpoints/          # Contains the model checkpoints saved during training
  ├── logs/          # Contains the tensorboard logs for the training of the models
  ├── models/           # Pre-trained RL models, for angular and thrust control
+ ├── pics/           # Contains the images of the trajectories used in the README
  ├── requirements/          # Contains two requirements files, one for devices with CUDA and one for devices without CUDA support
  ├── train/          # Contains the training scripts for the RL models as well as the tensorboard logs for hyperparameter optimization
  ├── README.md         # This document
 ```
 
+## Visualisation of trajectories
+
+| Control Type     | PPO                               | SAC                               | DDPG                                |
+|------------------|-----------------------------------|-----------------------------------|-------------------------------------|
+| **Angular Control** | ![PPO](pics/ppo_angular_traj.png) | ![SAC](pics/sac_angular_traj.png) | ![DDPG](pics/ddpg_angular_traj.png) |
+| **Thrust Control**  | ![PPO](pics/ppo_thrust_traj.png)  | ![SAC](pics/sac_thrust_traj.png)  | ![DDPG](pics/ddpg_thrust_traj.png)  |
+
+
+For a more detailed view of the produced trajectories, refer to the [VisualsBA](VisualsBA) directory. It contains, among other figures, interactive plots, 
+providing one with the chance of freely investigating the results.
+
 ## Results
 
-Experiments indicate that **PPO outperforms SAC and DDPG** in terms of:
+Experiments indicate that **PPO outperforms SAC and DDPG** in terms of navigating 
+efficiently nevigating UAVs to waypoints. SAC does however outperform PPO and DDPG in terms of consistency.
+Results further suggest that controlling the UAV via angular position is generally
+more efficient than using thrust control.
 
-- **Training stability**
-- **Sample efficiency**
-- **Generalization across waypoint scenarios**
+For a more in-depth analysis of the results, please refer to my [thesis](docs/Bachelorthesis_Felix,Unterleiter.pdf).
 
-See the full analysis in the *results* directory or refer to my thesis for in-depth evaluations.
+# Getting started
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone --branch debug_convergence https://github.com/felix-basiliskroko/pyflyt_experience.git
-cd pyflyt_experience
+git clone https://github.com/felix-basiliskroko/RLNav.git
+cd RLNav
 
-# Create a virtual environment (optional but recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
+# Create a virtual environment (is optional but recommended)
+python -m venv rl_venv
+source rl_venv/bin/activate  # On Windows use: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+cd requirements
+pip install -r requirements_cuda.txt  # For devices with CUDA support
+pip install -r requirements.txt  # For devices without CUDA support
 ```
 
-\#\# Usage
+## Usage
 
 ### Train a model
 
 ```bash
-python scripts/train.py --algorithm PPO --env QuadXWaypointsEnv
+python3 main.py --algorithm="ppo" --total_steps=500000 --eval_freq=20000 \
+                --hyperparam_mode="tuned" --flight_mode=1 --run_name="TestRun"
 ```
+
+For a more detailed overview of the training process, refer to the [train](train/README.md) directory.
 
 ### Evaluate a trained model
 
 ```bash
-python scripts/evaluate.py --model models/ppo_model.pth --env QuadXWaypointsEnv
+TODO
 ```
 
 ## Key Insights
 
 - **Observation Space Design**: The addition of angular velocity data enhances UAV stability.
 - **Reward Function Optimization**: Combining Line-of-Sight (LOS) penalties with smooth control incentives leads to more efficient navigation.
-- **Training Dynamics**: Learning rate annealing significantly improves convergence.
+- **Training Dynamics**: Learning rate annealing does not indicate to significantly improve effectiveness.
 
 ## License
 
@@ -86,9 +105,12 @@ This project is licensed under the MIT License. See `LICENSE` for details.
 
 ## Acknowledgments
 
-- **Technische Hochschule Ingolstadt** for academic support.
-- **Airbus Defence and Space** for collaboration in UAV simulation frameworks.
-- **PyFlyt Developers** for providing an extensible UAV simulation environment.
+- **Technische Hochschule Ingolstadt**, specifically Konstantin Bake 
+ and Professor Doctor Christian Seidel for their continuous academic support.
+- **Airbus Defence and Space** for their supporting me as part of my dual study
+program.
+- **The [PyFlyt](https://github.com/jjshoots/PyFlyt) Developers** for providing an extensible UAV simulation environment.
+
 
 ## Contact
 
@@ -97,6 +119,5 @@ Felix Unterleiter\
 [LinkedIn](https://your-linkedin.com)
 
 ---
-
-**Note:** This README refers exclusively to the **debug\_convergence** branch, which is the main focus of ongoing development.
+© 2025 Felix Unterleiter. All rights reserved.
 
