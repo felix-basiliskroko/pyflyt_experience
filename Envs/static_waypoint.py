@@ -31,6 +31,7 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             steep_grad: float = 1.0,
             reward_shift: float = 0.0,
             min_height: float = 0.6,
+            az_align: bool = False,
     ):
         """__init__.
 
@@ -44,6 +45,10 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
             agent_hz (int): looprate of the agent to environment interaction.
             render_mode (None | Literal["human", "rgb_array"]): render_mode
             render_resolution (tuple[int, int]): render_resolution.
+            steep_grad (float): steepness of the reward function.
+            reward_shift (float): reward shift.
+            min_height (float): minimum height of the UAV.
+            az_align (bool): whether to align the azimuth angle with the target vector once reset is called.
 
         """
 
@@ -77,6 +82,8 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
         self.state = None
         self.xyz_limit = np.pi
         self.thrust_limit = 0.8
+        self.az_align = az_align
+        self.agent_hz = agent_hz
 
         # Define observation space:
         if self.flight_mode == -1:  # m1, m2, m3, m4; the state space will also include motor thrusts
@@ -180,35 +187,35 @@ class SingleWaypointQuadXEnv(QuadXBaseEnv):
 
         super().begin_reset(seed, options)  # self.env with neutral starting orientation
         self.waypoints.reset(self.env, self.np_random)  # Initialize the target vector
+        if self.az_align:
+            # Calculate azimuth-aligned starting orientation based on target vector
+            target_proj = self.waypoints.targets[0][:2] / np.linalg.norm(self.waypoints.targets[0][:2])
+            init_yaw = ang(np.array([0.0, -1.0]), target_proj)
+            self.start_orn = np.array([[0.0, 0.0, init_yaw]])
 
-        # Calculate azimuth-aligned starting orientation based on target vector
-        target_proj = self.waypoints.targets[0][:2] / np.linalg.norm(self.waypoints.targets[0][:2])
-        init_yaw = ang(np.array([0.0, -1.0]), target_proj)
-        self.start_orn = np.array([[0.0, 0.0, init_yaw]])
+            # Overwrite self.env with updated starting orientation (self.start_orn)
+            drone_options = dict()
+            drone_options["use_camera"] = drone_options.get("use_camera", False) or bool(
+                self.render_mode
+            )
+            drone_options["camera_fps"] = int(120 / self.env_step_ratio)
 
-        # Overwrite self.env with updated starting orientation (self.start_orn)
-        drone_options = dict()
-        drone_options["use_camera"] = drone_options.get("use_camera", False) or bool(
-            self.render_mode
-        )
-        drone_options["camera_fps"] = int(120 / self.env_step_ratio)
+            self.env = Aviary(
+                start_pos=self.start_pos,
+                start_orn=self.start_orn,
+                drone_type="quadx",
+                render=self.render_mode == "human",
+                drone_options=drone_options,
+                seed=seed,
+            )
 
-        self.env = Aviary(
-            start_pos=self.start_pos,
-            start_orn=self.start_orn,
-            drone_type="quadx",
-            render=self.render_mode == "human",
-            drone_options=drone_options,
-            seed=seed,
-        )
+            if self.render_mode == "human":
+                self.camera_parameters = self.env.getDebugVisualizerCamera()
 
-        if self.render_mode == "human":
-            self.camera_parameters = self.env.getDebugVisualizerCamera()
-
-        # Explanation for above: begin_reset() needs to be called before waypoint/target can be set. Since begin_reset()
-        # sets the self.env variable with the the orientation to neutral, self.env needs to be overwritten with the
-        # updated starting orientation. The orientation is set to be azimuth-aligned with the target vector.
-        # TODO Messy workaround. Find a better way to handle this. Maybe overwrite self.begin_reset()?
+            # Explanation for above: begin_reset() needs to be called before waypoint/target can be set. Since begin_reset()
+            # sets the self.env variable with the the orientation to neutral, self.env needs to be overwritten with the
+            # updated starting orientation. The orientation is set to be azimuth-aligned with the target vector.
+            # TODO Messy workaround. Find a better way to handle this. Maybe overwrite self.begin_reset()?
 
         self.action = np.zeros(4)
         self.info["num_targets_reached"] = 0

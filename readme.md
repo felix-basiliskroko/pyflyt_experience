@@ -4,7 +4,11 @@
 
 ## Overview
 
-This repository contains the **debug\_convergence** branch of my research on UAV waypoint navigation using reinforcement learning (RL). The project explores the convergence behavior of various RL algorithms within a tailored PyFlyt simulation environment. The primary focus is on stabilizing training dynamics, optimizing hyperparameters, and refining the reward function for improved UAV control.
+This repository contains all the code concerning my research on **UAV waypoint navigation**
+using reinforcement learning (RL). The project explores the **convergence behavior** of various RL algorithms
+within a **tailored simulation environment based on PyFlyt**. The primary focus is on **stabilizing training dynamics**,
+**optimizing hyperparameters**, **comparing command designs** and **refining the state-space** as well as the **reward function** for
+improved UAV control.
 
 ## Project Scope
 
@@ -16,14 +20,15 @@ The objective of this project is to apply **Proximal Policy Optimization (PPO)**
 ## Features
 
 - **Custom PyFlyt Gymnasium Environment**: Extended state and action spaces, including angular positional data and reward function refinements.
-- **Reinforcement Learning Algorithms**: Implementation of PPO, SAC, and DDPG for UAV control.
+- **Reinforcement Learning Algorithms**: Adaptation of PPO, SAC, and DDPG for UAV control from stable-baselines3.
 - **Hyperparameter Optimization**: Fine-tuned learning rates, entropy coefficients, and discount factors.
-- **Debugging Convergence**: Analysis of training stability, sample efficiency, and model robustness.
+- **Policy Analysis**: Analysis of stability, overall efficiency, and success rate of all policies.
 
 ## Repository Structure
 
 ```
 pyflyt_experience/
+ ├── agent_inference/          # containts a script for running inference on the models 
  ├── checkpoints/          # Contains the model checkpoints saved during training
  ├── docs/          # Contains my finalised bachelor thesis
  ├── Envs/     # Contains the custom PyFlyt Gymnasium environment and Reward function
@@ -50,10 +55,13 @@ providing one with the chance of freely investigating the results.
 
 ## Results
 
-Experiments indicate that **PPO outperforms SAC and DDPG** in terms of navigating 
-efficiently nevigating UAVs to waypoints. SAC does however outperform PPO and DDPG in terms of consistency.
-Results further suggest that controlling the UAV via angular position is generally
-more efficient than using thrust control.
+Experiments indicate that **PPO outperforms SAC and DDPG** in terms of navigating
+**efficiently** towards waypoints. **SAC does however outperform PPO and DDPG** in terms of **consistency**, achieving a higher overall
+success rate.
+Results further suggest that controlling the UAV via **angular position is generally
+more efficient** and target-orientated than using thrust control.
+**DDPG** is found to be the **least effective** algorithm, with the lowest success rate and highly
+inefficient navigation control compared to PPO and SAC.
 
 For a more in-depth analysis of the results, please refer to my [thesis](docs/Bachelorthesis_Felix,Unterleiter.pdf).
 
@@ -87,21 +95,28 @@ python3 main.py --algorithm="ppo" --total_steps=500000 --eval_freq=20000 \
 
 For a more detailed overview of the training process, refer to the [train](train/README.md) directory.
 
-### Evaluate a trained model
+### Run inference
 
 ```bash
-TODO
+cd agent_inference
+python3 main.py --algorithm="SAC" --control="angular"
 ```
+
+Can additionally be passed the '--render' flag to render the UAV's in real-time. If ommited, the evaluation will be done without rendering
+and prints the UAVs position, distance to target and current time in seconds into the command line.
+
+Please note that if the '--render' flag is passed, the effectiveness of the policy is not guaranteed as the UAV will not be aligned with the target
+before starting. This can lead to the UAV crashing into the ground or not reaching the target at all. 
 
 ## Key Insights
 
 - **Observation Space Design**: The addition of angular velocity data enhances UAV stability.
-- **Reward Function Optimization**: Combining Line-of-Sight (LOS) penalties with smooth control incentives leads to more efficient navigation.
+- **Action Space**: Controlling the UAV via angular positions is generally more effective than thrust control across all algorithms
 - **Training Dynamics**: Learning rate annealing does not indicate to significantly improve effectiveness.
 
 ## License
 
-This project is licensed under the MIT License. See `LICENSE` for details.
+This project is licensed under the MIT License. See [`LICENSE`](LICENSE) for details.
 
 ## Acknowledgments
 
